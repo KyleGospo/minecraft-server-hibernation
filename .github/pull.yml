@@ -1,0 +1,22 @@
+version: "1"
+rules:
+  - base: master
+    upstream: gekware:master
+    mergeMethod: merge
+    mergeUnstable: false
+    assignees:
+      - KyleGospo
+    reviewers:
+      - KyleGospo
+    conflictReviewers:
+      - KyleGospo
+  - base: dev
+    upstream: gekware:dev
+    mergeMethod: merge
+    mergeUnstable: false
+    assignees:
+      - KyleGospo
+    reviewers:
+      - KyleGospo
+    conflictReviewers:
+      - KyleGospo
