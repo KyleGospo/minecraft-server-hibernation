@@ -6,7 +6,6 @@ License:        GPLv3
 URL:            https://github.com/KyleGospo/minecraft-server-hibernation
 
 Source:         {{{ git_dir_pack }}}
-Patch0:         cwd.patch
 
 BuildRequires:  golang
 BuildRequires:  git
@@ -21,7 +20,6 @@ Avoid wasting of resources by automatically starting your minecraft server when 
 
 %prep
 {{{ git_dir_setup_macro }}}
-%patch0
 
 %build
 go build .
