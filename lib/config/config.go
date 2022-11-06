@@ -92,7 +92,7 @@ func (c *Configuration) Save() *errco.Error {
 	// escape unicode characters ("\u003c" to "<" and "\u003e" to ">")
 	configData, errMsh := utility.UnicodeEscape(configData)
 	if errMsh != nil {
-		errco.LogMshErr(errMsh.AddTrace("Save"))
+		errco.LogWarn(errMsh.AddTrace("Save"))
 	}
 
 	// write to config file
@@ -133,7 +133,7 @@ func (c *Configuration) loadDefault() *errco.Error {
 	// load mshid
 	mi := MshID()
 	if c.Configuration.Msh.ID != mi {
-		errco.LogMshErr(errco.NewErr(errco.ERROR_CONFIG_LOAD, errco.LVL_3, "loadDefault", "config msh id different from instance msh id, applying correction..."))
+		errco.LogWarn(errco.NewErr(errco.ERROR_CONFIG_LOAD, errco.LVL_3, "loadDefault", "config msh id different from instance msh id, applying correction..."))
 		c.Configuration.Msh.ID = mi
 		configDefaultSave = true
 	}
@@ -142,8 +142,8 @@ func (c *Configuration) loadDefault() *errco.Error {
 	// (checkout version.json info: https://minecraft.fandom.com/wiki/Version.json)
 	version, protocol, errMsh := c.getVersionInfo()
 	if errMsh != nil {
-		// just log error since ms version/protocol are not vital for the connection with clients
-		errco.LogMshErr(errMsh.AddTrace("loadDefault"))
+		// just log warning since ms version/protocol are not vital for the connection with clients
+		errco.LogWarn(errMsh.AddTrace("loadDefault"))
 	} else if c.Server.Version != version || c.Server.Protocol != protocol {
 		c.Server.Version = version
 		c.Server.Protocol = protocol
@@ -202,7 +202,7 @@ func (c *Configuration) loadRuntime(confdef *Configuration) *errco.Error {
 	if _, err := os.Stat(serverFileFolderPath); os.IsNotExist(err) {
 		// server folder/executeble does not exist
 
-		servstats.Stats.Error = errco.NewErr(errco.ERROR_MINECRAFT_SERVER, errco.LVL_3, "loadRuntime", "specified minecraft server folder/file does not exist")
+		servstats.Stats.SetMajorError(errco.NewErr(errco.ERROR_MINECRAFT_SERVER, errco.LVL_3, "loadRuntime", "specified minecraft server folder/file does not exist"))
 		errco.LogMshErr(errco.NewErr(errco.ERROR_CONFIG_CHECK, errco.LVL_1, "loadRuntime", "specified server file/folder does not exist: "+serverFileFolderPath))
 
 	} else {
@@ -215,7 +215,7 @@ func (c *Configuration) loadRuntime(confdef *Configuration) *errco.Error {
 		case err != nil:
 			// eula.txt does not exist
 
-			errco.LogMshErr(errco.NewErr(errco.ERROR_CONFIG_CHECK, errco.LVL_1, "loadRuntime", "could not read eula.txt file: "+eulaFilePath))
+			errco.LogWarn(errco.NewErr(errco.ERROR_CONFIG_CHECK, errco.LVL_1, "loadRuntime", "could not read eula.txt file: "+eulaFilePath))
 
 			// start server to generate eula.txt (and server.properties)
 			errco.Logln(errco.LVL_3, "starting minecraft server to generate eula.txt file...")
@@ -228,7 +228,7 @@ func (c *Configuration) loadRuntime(confdef *Configuration) *errco.Error {
 			err = cmd.Run()
 			fmt.Print(errco.COLOR_RESET) // reset color
 			if err != nil {
-				servstats.Stats.Error = errco.NewErr(errco.ERROR_MINECRAFT_SERVER, errco.LVL_3, "loadRuntime", "couldn't start minecraft server to generate eula.txt\n(are you using the correct java version?)")
+				servstats.Stats.SetMajorError(errco.NewErr(errco.ERROR_MINECRAFT_SERVER, errco.LVL_3, "loadRuntime", "couldn't start minecraft server to generate eula.txt\n(are you using the correct java version?)"))
 				errco.LogMshErr(errco.NewErr(errco.ERROR_TERMINAL_START, errco.LVL_1, "loadRuntime", "couldn't start minecraft server to generate eula.txt: ["+err.Error()+"]"))
 			}
 			fallthrough
@@ -236,7 +236,7 @@ func (c *Configuration) loadRuntime(confdef *Configuration) *errco.Error {
 		case !strings.Contains(strings.ReplaceAll(strings.ToLower(string(eulaData)), " ", ""), "eula=true"):
 			// eula.txt exists but is not set to true
 
-			servstats.Stats.Error = errco.NewErr(errco.ERROR_MINECRAFT_SERVER, errco.LVL_3, "loadRuntime", "please accept minecraft server eula.txt")
+			servstats.Stats.SetMajorError(errco.NewErr(errco.ERROR_MINECRAFT_SERVER, errco.LVL_3, "loadRuntime", "please accept minecraft server eula.txt"))
 			errco.LogMshErr(errco.NewErr(errco.ERROR_CONFIG_CHECK, errco.LVL_1, "loadRuntime", "please accept minecraft server eula.txt: "+eulaFilePath))
 
 		default:
@@ -249,11 +249,11 @@ func (c *Configuration) loadRuntime(confdef *Configuration) *errco.Error {
 	// check if java is installed and get java version
 	_, err := exec.LookPath("java")
 	if err != nil {
-		servstats.Stats.Error = errco.NewErr(errco.ERROR_MINECRAFT_SERVER, errco.LVL_3, "loadRuntime", "java not installed")
+		servstats.Stats.SetMajorError(errco.NewErr(errco.ERROR_MINECRAFT_SERVER, errco.LVL_3, "loadRuntime", "java not installed"))
 		errco.LogMshErr(errco.NewErr(errco.ERROR_CONFIG_CHECK, errco.LVL_1, "loadRuntime", "java not installed"))
 	} else if out, err := exec.Command("java", "--version").Output(); err != nil {
 		// non blocking error
-		errco.LogMshErr(errco.NewErr(errco.ERROR_CONFIG_CHECK, errco.LVL_1, "loadRuntime", "could not execute 'java -version' command"))
+		errco.LogWarn(errco.NewErr(errco.ERROR_CONFIG_CHECK, errco.LVL_1, "loadRuntime", "could not execute 'java -version' command"))
 		Javav = "unknown"
 	} else {
 		Javav = strings.ReplaceAll(strings.Split(string(out), "\n")[0], "\r", "")
@@ -262,7 +262,7 @@ func (c *Configuration) loadRuntime(confdef *Configuration) *errco.Error {
 	// initialize ip and ports for connection
 	errMsh := c.loadIpPorts()
 	if errMsh != nil {
-		servstats.Stats.Error = errco.NewErr(errco.ERROR_MINECRAFT_SERVER, errco.LVL_3, "loadRuntime", "proxy setup failed, check msh logs")
+		servstats.Stats.SetMajorError(errco.NewErr(errco.ERROR_MINECRAFT_SERVER, errco.LVL_3, "loadRuntime", "proxy setup failed, check msh logs"))
 		errco.LogMshErr(errMsh.AddTrace("loadRuntime"))
 	}
 	errco.Logln(errco.LVL_3, "msh proxy setup: %s:%d --> %s:%d", ListenHost, ListenPort, TargetHost, TargetPort)
@@ -270,8 +270,8 @@ func (c *Configuration) loadRuntime(confdef *Configuration) *errco.Error {
 	// load server icon
 	errMsh = c.loadIcon()
 	if errMsh != nil {
-		// it's enough to log it since the default icon is loaded by default
-		errco.LogMshErr(errMsh.AddTrace("loadRuntime"))
+		// it's enough to log a warning since the default icon is loaded by default
+		errco.LogWarn(errMsh.AddTrace("loadRuntime"))
 	}
 
 	return nil
