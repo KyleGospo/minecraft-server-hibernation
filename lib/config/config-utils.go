@@ -19,8 +19,9 @@ import (
 	"msh/lib/utility"
 )
 
-// InWhitelist checks if the playerName or clientAddress is in config whitelist
-func (c *Configuration) InWhitelist(params ...string) *errco.MshLog {
+// IsWhitelist checks if the parameters are in config whitelist.
+// (Currently this function accepts as arguments the client request packet and the client address)
+func (c *Configuration) IsWhitelist(reqPacket []byte, clientAddress string) *errco.MshLog {
 	// check if whitelist is enabled
 	// if empty then it is not enabled and no checks are needed
 	if len(c.Msh.Whitelist) == 0 {
@@ -28,18 +29,23 @@ func (c *Configuration) InWhitelist(params ...string) *errco.MshLog {
 		return nil
 	}
 
-	errco.Logln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "checking whitelist for: %s", strings.Join(params, ", "))
+	// check client address against whitelist
+	errco.Logln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "searching whitelist for: %s", clientAddress)
+	if utility.SliceContain(clientAddress, c.Msh.Whitelist) {
+		errco.Logln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "whitelist ok!")
+		return nil
+	}
 
-	// check if playerName or clientAddress are in whitelist
-	for _, p := range params {
-		if utility.SliceContain(p, c.Msh.Whitelist) {
-			errco.Logln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "playerName or clientAddress is whitelisted!")
+	// check elements of whitelist against request packet
+	for _, w := range c.Msh.Whitelist {
+		errco.Logln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "searching byte array for: %s", w)
+		if bytes.Contains(reqPacket, []byte(w)) {
+			errco.Logln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "whitelist ok!")
 			return nil
 		}
 	}
 
-	// playerName or clientAddress not found in whitelist
-	return errco.NewLog(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_PLAYER_NOT_IN_WHITELIST, "playerName or clientAddress is not whitelisted")
+	return errco.NewLog(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_CLIENT_NOT_WHITELIST, "whitelist check failed")
 }
 
 // loadIcon tries to load user specified server icon (base-64 encoded and compressed).
