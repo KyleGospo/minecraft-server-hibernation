@@ -27,7 +27,7 @@ func HandleClientSocket(clientSocket net.Conn) {
 		return
 	}
 
-	// if ms has a major error warn the client and return
+	// ms has a major error: warn the client and return
 	if servstats.Stats.MajorError != nil {
 		// close the client connection at the end
 		defer func() {
@@ -59,6 +59,7 @@ func HandleClientSocket(clientSocket net.Conn) {
 		return
 	}
 
+	// ms has not a major error: handle the request
 	switch reqType {
 	case errco.CLIENT_REQ_INFO:
 		errco.Logln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "a client requested server info from %s:%d to %s:%d", clientAddress, config.ListenPort, config.TargetHost, config.TargetPort)
@@ -209,7 +210,7 @@ func forward(source, destination net.Conn, isServerToClient bool, stopC chan boo
 		if err != nil {
 			// case in which the connection is closed by the source or closed by target
 			if err == io.EOF {
-				errco.Logln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "closing %15s --> %15s because of: %s", strings.Split(source.RemoteAddr().String(), ":")[0], strings.Split(destination.RemoteAddr().String(), ":")[0], err.Error())
+				errco.Logln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_CONN_EOF, "closing %15s --> %15s because of: %s", strings.Split(source.RemoteAddr().String(), ":")[0], strings.Split(destination.RemoteAddr().String(), ":")[0], err.Error())
 			} else {
 				errco.Logln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "%s\n%15s --> %15s", err.Error(), strings.Split(source.RemoteAddr().String(), ":")[0], strings.Split(destination.RemoteAddr().String(), ":")[0])
 			}
