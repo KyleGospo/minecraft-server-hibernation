@@ -17,26 +17,30 @@ import (
 )
 
 // countPlayerSafe returns the number of players on the server.
-// The /list command is used for safety and if it fails, internal player count is returned.
-// No error is returned: the integer is always meaningful
+//
+// players are retrived by (in order): server info, list command, internal player count.
+//
+// no error is returned: the return integer is always meaningful
 // (might be more or less reliable depending from where it retrieved).
-// The method used to count players is returned as second parameter.
-func countPlayerSafe() (int, string) {
-	errco.Logln(errco.TYPE_INF, errco.LVL_1, errco.ERROR_NIL, "retrieving  player count...")
+func countPlayerSafe() int {
+	var logMsh *errco.MshLog
+	var playerCount int
+	var method string
 
-	playerCount, logMsh := getPlayersByServInfo()
-	if logMsh == nil {
-		return playerCount, "server info"
+	errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "retrieving player count...")
+
+	if playerCount, logMsh = getPlayersByServInfo(); logMsh.Log() == nil {
+		method = "list command"
+	} else if playerCount, logMsh = getPlayersByListCom(); logMsh.Log() == nil {
+		method = "server info"
+	} else {
+		playerCount = servstats.Stats.PlayerCount
+		method = "internal"
 	}
-	errco.Log(logMsh.AddTrace())
 
-	playerCount, logMsh = getPlayersByListCom()
-	if logMsh == nil {
-		return playerCount, "list command"
-	}
-	errco.Log(logMsh.AddTrace())
+	errco.NewLogln(errco.TYPE_INF, errco.LVL_1, errco.ERROR_NIL, "%d online players - method for player count: %s", playerCount, method)
 
-	return servstats.Stats.PlayerCount, "internal"
+	return playerCount
 }
 
 // getPlayersByListCom returns the number of players using "list" command
@@ -69,8 +73,10 @@ func getPlayersByServInfo() (int, *errco.MshLog) {
 
 // getServInfo returns server info after emulating a server info request to the minecraft server
 func getServInfo() (*model.DataInfo, *errco.MshLog) {
-	if servstats.Stats.Status != errco.SERVER_STATUS_ONLINE {
-		return &model.DataInfo{}, errco.NewLog(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_SERVER_NOT_ONLINE, "server not online")
+	// check if ms is running
+	logMsh := checkMSRunning()
+	if logMsh != nil {
+		return &model.DataInfo{}, logMsh.AddTrace()
 	}
 
 	// open connection to minecraft server
@@ -92,7 +98,7 @@ func getServInfo() (*model.DataInfo, *errco.MshLog) {
 
 	mes := reqInfoMessage.Bytes()
 	serverSocket.Write(mes)
-	errco.Logln(errco.TYPE_BYT, errco.LVL_4, errco.ERROR_NIL, "%smsh --> server%s: %v", errco.COLOR_PURPLE, errco.COLOR_RESET, mes)
+	errco.NewLogln(errco.TYPE_BYT, errco.LVL_4, errco.ERROR_NIL, "%smsh --> server%s: %v", errco.COLOR_PURPLE, errco.COLOR_RESET, mes)
 
 	// read response from server
 	recInfoData := []byte{}
@@ -108,7 +114,7 @@ func getServInfo() (*model.DataInfo, *errco.MshLog) {
 			return &model.DataInfo{}, errco.NewLog(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_SERVER_REQUEST_INFO, err.Error())
 		}
 
-		errco.Logln(errco.TYPE_BYT, errco.LVL_4, errco.ERROR_NIL, "%sserver --> msh%s: %v", errco.COLOR_PURPLE, errco.COLOR_RESET, buf[:dataLen])
+		errco.NewLogln(errco.TYPE_BYT, errco.LVL_4, errco.ERROR_NIL, "%sserver --> msh%s: %v", errco.COLOR_PURPLE, errco.COLOR_RESET, buf[:dataLen])
 
 		recInfoData = append(recInfoData, buf[:dataLen]...)
 	}
@@ -128,7 +134,7 @@ func getServInfo() (*model.DataInfo, *errco.MshLog) {
 
 	// update server version and protocol in config
 	if recInfo.Version.Name != config.ConfigRuntime.Server.Version || recInfo.Version.Protocol != config.ConfigRuntime.Server.Protocol {
-		errco.Logln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "server version found! serverVersion: %s serverProtocol: %d", recInfo.Version.Name, recInfo.Version.Protocol)
+		errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "server version found! serverVersion: %s serverProtocol: %d", recInfo.Version.Name, recInfo.Version.Protocol)
 
 		// update runtime config if version is not specified
 		if config.ConfigRuntime.Server.Version == "" {

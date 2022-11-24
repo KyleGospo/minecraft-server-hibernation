@@ -19,7 +19,7 @@ func WarmMS() *errco.MshLog {
 		return errco.NewLog(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_MINECRAFT_SERVER, "minecraft server has encountered major problems")
 	}
 
-	errco.Logln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "warming minecraft server...")
+	errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "warming minecraft server...")
 
 	switch servstats.Stats.Status {
 
@@ -27,7 +27,7 @@ func WarmMS() *errco.MshLog {
 		// ms is offline, log error if ms process is set to suspended
 
 		if servstats.Stats.Suspended {
-			errco.Logln(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_SERVER_OFFLINE_SUSPENDED, "minecraft server is suspended and offline")
+			errco.NewLogln(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_SERVER_OFFLINE_SUSPENDED, "minecraft server is suspended and offline")
 			servstats.Stats.Suspended = false // if ms is offline it's process can't be suspended
 		}
 
@@ -58,9 +58,9 @@ func FreezeMS(force bool) *errco.MshLog {
 	var logMsh *errco.MshLog
 
 	if force {
-		errco.Logln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "executing minecraft server FORCE freeze...")
+		errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "executing ms force freeze...")
 	} else {
-		errco.Logln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "executing minecraft server SOFT freeze...")
+		errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "executing ms soft freeze...")
 	}
 
 	switch servstats.Stats.Status {
@@ -68,34 +68,26 @@ func FreezeMS(force bool) *errco.MshLog {
 	case errco.SERVER_STATUS_STARTING:
 		// ms is starting, resume the ms process, wait for status online and then freeze ms
 
-		// resume ms process (un/suspended)
-		if config.ConfigRuntime.Msh.AllowSuspend {
-			servstats.Stats.Suspended, logMsh = opsys.ProcTreeResume(uint32(ServTerm.cmd.Process.Pid))
+		if force {
+			// if forceful freeze, resume and stop ms
+			logMsh = ResumeStopMS()
 			if logMsh != nil {
 				return logMsh.AddTrace()
 			}
+		} else {
+			// schedule soft freeze of ms
+			// to give ms more time to start up
+			FreezeMSSchedule()
 		}
 
-		// wait for ms to go online
-		for servstats.Stats.Status == errco.SERVER_STATUS_STARTING {
-			time.Sleep(1 * time.Second)
-		}
-
-		// if ms is not online return
-		if servstats.Stats.Status != errco.SERVER_STATUS_ONLINE {
-			return errco.NewLog(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_SERVER_NOT_ONLINE, "server is not online")
-		}
-
-		// now it's the case of the ms status online
-		fallthrough
+		return nil
 
 	case errco.SERVER_STATUS_ONLINE:
 		// is ms is online, resume the process and then stop it
 
-		// if forceful, execute ms stop then return
 		if force {
-			// if forceful freeze, execute ms stop
-			logMsh = executeMSStop()
+			// if forceful freeze, resume and stop ms
+			logMsh = ResumeStopMS()
 			if logMsh != nil {
 				return logMsh.AddTrace()
 			}
@@ -103,9 +95,7 @@ func FreezeMS(force bool) *errco.MshLog {
 		}
 
 		// check how many players are on the server
-		playerCount, method := countPlayerSafe()
-		errco.Logln(errco.TYPE_INF, errco.LVL_1, errco.ERROR_NIL, "%d online players - method for player count: %s", playerCount, method)
-		if playerCount > 0 {
+		if countPlayerSafe() > 0 {
 			return errco.NewLog(errco.TYPE_WAR, errco.LVL_3, errco.ERROR_SERVER_NOT_EMPTY, "server is not empty")
 		}
 
@@ -116,7 +106,8 @@ func FreezeMS(force bool) *errco.MshLog {
 				return logMsh.AddTrace()
 			}
 		} else {
-			logMsh = executeMSStop()
+			// resume and stop ms
+			logMsh = ResumeStopMS()
 			if logMsh != nil {
 				return logMsh.AddTrace()
 			}
@@ -135,7 +126,7 @@ func FreezeMS(force bool) *errco.MshLog {
 			}
 		}
 
-		errco.Logln(errco.TYPE_WAR, errco.LVL_3, errco.ERROR_SERVER_STOPPING, "waiting for minecraft server to go offline...")
+		errco.NewLogln(errco.TYPE_WAR, errco.LVL_3, errco.ERROR_SERVER_STOPPING, "waiting for minecraft server to go offline...")
 
 		// wait for ms to go offline
 		for servstats.Stats.Status == errco.SERVER_STATUS_STOPPING {
@@ -149,11 +140,11 @@ func FreezeMS(force bool) *errco.MshLog {
 
 		// log error if ms process is set to suspended
 		if servstats.Stats.Suspended {
-			errco.Logln(errco.TYPE_WAR, errco.LVL_3, errco.ERROR_SERVER_OFFLINE_SUSPENDED, "minecraft server is suspended and offline")
+			errco.NewLogln(errco.TYPE_WAR, errco.LVL_3, errco.ERROR_SERVER_OFFLINE_SUSPENDED, "minecraft server is suspended and offline")
 			servstats.Stats.Suspended = false // if ms is offline it's process can't be suspended
 		}
 
-		errco.Logln(errco.TYPE_WAR, errco.LVL_3, errco.ERROR_SERVER_OFFLINE, "minecraft server is offline")
+		errco.NewLogln(errco.TYPE_WAR, errco.LVL_3, errco.ERROR_SERVER_OFFLINE, "minecraft server is offline")
 
 		return nil
 
@@ -164,12 +155,13 @@ func FreezeMS(force bool) *errco.MshLog {
 
 // FreezeMSSchedule stops freeze timer and schedules a soft freeze of ms
 func FreezeMSSchedule() {
-	errco.Logln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "rescheduling ms soft freeze in %d seconds", config.ConfigRuntime.Msh.TimeBeforeStoppingEmptyServer)
+	errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "scheduling ms soft freeze in %d seconds", config.ConfigRuntime.Msh.TimeBeforeStoppingEmptyServer)
 
 	// stop freeze timer so that it can be reset
-	if !servstats.Stats.FreezeTimer.Stop() {
-		<-servstats.Stats.FreezeTimer.C
-	}
+	// don't use drain channel procedure described in Stop() as it might happen
+	// that at this point a signal has already been received from t.C
+	// (calling a <-channel might be blocking)
+	_ = servstats.Stats.FreezeTimer.Stop()
 
 	// schedule soft freeze of ms in TimeBeforeStoppingEmptyServer seconds
 	// [goroutine]
@@ -177,18 +169,19 @@ func FreezeMSSchedule() {
 		time.Duration(config.ConfigRuntime.Msh.TimeBeforeStoppingEmptyServer)*time.Second,
 		func() {
 			// perform soft freeze of ms
-			errco.Logln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "performing scheduled ms soft freeze")
+			errco.NewLogln(errco.TYPE_INF, errco.LVL_1, errco.ERROR_NIL, "performing scheduled ms soft freeze")
 			logMsh := FreezeMS(false)
 			if logMsh != nil {
-				errco.Log(logMsh.AddTrace())
+				logMsh.AddTrace().Log()
 			}
 		},
 	)
 }
 
-// executeMSStop resumes ms process and executes a stop command in ms terminal.
+// ResumeStopMS resumes ms process and executes a stop command in ms terminal.
+//
 // should be called only when ms status is online
-func executeMSStop() *errco.MshLog {
+func ResumeStopMS() *errco.MshLog {
 	var logMsh *errco.MshLog
 
 	// resume ms process (un/suspended)
@@ -230,7 +223,7 @@ func killMSifOnlineAfterTimeout() {
 	if config.ConfigRuntime.Msh.AllowSuspend {
 		servstats.Stats.Suspended, logMsh = opsys.ProcTreeResume(uint32(ServTerm.cmd.Process.Pid))
 		if logMsh != nil {
-			errco.Log(logMsh.AddTrace())
+			logMsh.AddTrace().Log()
 		}
 	}
 
@@ -245,16 +238,16 @@ func killMSifOnlineAfterTimeout() {
 	}
 
 	// save world before killing the server, do not check for errors
-	errco.Logln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "saving word before killing the minecraft server process")
+	errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "saving word before killing the minecraft server process")
 	_, _ = Execute("save-all", "killMSifOnlineAfterTimeout")
 
 	// give time to save word
 	time.Sleep(10 * time.Second)
 
 	// send kill signal to server
-	errco.Logln(errco.TYPE_WAR, errco.LVL_3, errco.ERROR_SERVER_KILL, "minecraft server process won't stop normally: sending kill signal")
+	errco.NewLogln(errco.TYPE_WAR, errco.LVL_3, errco.ERROR_SERVER_KILL, "minecraft server process won't stop normally: sending kill signal")
 	err := ServTerm.cmd.Process.Kill()
 	if err != nil {
-		errco.Logln(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_SERVER_KILL, err.Error())
+		errco.NewLogln(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_SERVER_KILL, err.Error())
 	}
 }
