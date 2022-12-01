@@ -38,14 +38,14 @@ var lastOut = make(chan string)
 // Commands with no terminal output don't cause hanging:
 // a timeout is set to receive a new terminal output line after which Execute returns.
 // [non-blocking]
-func Execute(command, origin string) (string, *errco.MshLog) {
+func Execute(command string) (string, *errco.MshLog) {
 	// check if ms is running
 	logMsh := checkMSRunning()
 	if logMsh != nil {
 		return "", logMsh.AddTrace()
 	}
 
-	errco.NewLogln(errco.TYPE_INF, errco.LVL_2, errco.ERROR_NIL, "ms command: %s%s%s\t(origin: %s)", errco.COLOR_YELLOW, command, errco.COLOR_RESET, origin)
+	errco.NewLogln(errco.TYPE_INF, errco.LVL_2, errco.ERROR_NIL, "ms command: %s%s%s\t(origin: %s%s%s)", errco.COLOR_CYAN, command, errco.COLOR_RESET, errco.COLOR_YELLOW, errco.Trace(2), errco.COLOR_RESET)
 
 	// write to server terminal (\n indicates the enter key)
 	_, err := ServTerm.inPipe.Write([]byte(command + "\n"))
@@ -363,9 +363,10 @@ func waitForExit() {
 }
 
 // suspendRefresher refreshes ms suspension by warming and freezing the server every set amount of time.
-// if suspension is not allowed this func just returns
-// if suspension refresh is not allowed this func just returns
-// [goroutine]
+//
+// If (suspension || suspension refresh) is not allowed this func just returns.
+//
+// [goroutine stoppable]
 func suspendRefresher(stop chan bool) {
 	if !config.ConfigRuntime.Msh.SuspendAllow {
 		return
@@ -377,7 +378,7 @@ func suspendRefresher(stop chan bool) {
 
 	errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "suspension refresher is starting")
 
-	servstats.Stats.SuspendRefreshTick.Reset(time.Duration(config.ConfigRuntime.Msh.SuspendRefresh) * time.Second)
+	ticker := time.NewTicker(time.Duration(config.ConfigRuntime.Msh.SuspendRefresh) * time.Second)
 
 	for {
 		select {
@@ -387,7 +388,7 @@ func suspendRefresher(stop chan bool) {
 			errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "suspension refresher is stopping")
 			return
 
-		case <-servstats.Stats.SuspendRefreshTick.C:
+		case <-ticker.C:
 			// check if ms is responding, not offline, suspended
 			switch {
 			case servstats.Stats.MajorError != nil:
