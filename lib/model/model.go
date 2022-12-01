@@ -15,15 +15,16 @@ type Configuration struct {
 		StopServerAllowKill int    `json:"StopServerAllowKill"`
 	} `json:"Commands"`
 	Msh struct {
-		ID                            string   `json:"ID"`
 		Debug                         int      `json:"Debug"`
-		AllowSuspend                  bool     `json:"AllowSuspend"` // specify if msh should suspend java server process
+		ID                            string   `json:"ID"`
+		ListenPort                    int      `json:"ListenPort"`
+		TimeBeforeStoppingEmptyServer int64    `json:"TimeBeforeStoppingEmptyServer"`
+		SuspendAllow                  bool     `json:"SuspendAllow"`   // specify if msh should suspend java server process
+		SuspendRefresh                int      `json:"SuspendRefresh"` // specify if msh should refresh java server process suspension and every how many seconds
 		InfoHibernation               string   `json:"InfoHibernation"`
 		InfoStarting                  string   `json:"InfoStarting"`
 		NotifyUpdate                  bool     `json:"NotifyUpdate"`
 		NotifyMessage                 bool     `json:"NotifyMessage"`
-		ListenPort                    int      `json:"ListenPort"`
-		TimeBeforeStoppingEmptyServer int64    `json:"TimeBeforeStoppingEmptyServer"`
 		Whitelist                     []string `json:"Whitelist"`
 		WhitelistImport               bool     `json:"WhitelistImport"`
 	} `json:"Msh"`
@@ -56,7 +57,7 @@ type Api2Req struct {
 		ID           string `json:"id"`            // msh id
 		Mshv         string `json:"msh-v"`         // msh version
 		Uptime       int    `json:"uptime"`        // msh uptime
-		AllowSuspend bool   `json:"allow-suspend"` // specify if msh hibernates ms by suspending process
+		SuspendAllow bool   `json:"allow-suspend"` // specify if msh hibernates ms by suspending process
 		Sgm          struct {
 			Seconds     int     `json:"seconds"`         // segment duration in seconds
 			SecondsHibe int     `json:"seconds-hibe"`    // segment seconds in which ms server was hibernating
