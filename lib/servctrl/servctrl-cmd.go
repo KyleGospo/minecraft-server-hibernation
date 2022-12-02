@@ -149,10 +149,6 @@ func termStart(dir, command string) *errco.MshLog {
 
 	go waitForExit()
 
-	// initialization
-	servstats.Stats.LoadProgress = "0%"
-	servstats.Stats.PlayerCount = 0
-
 	return nil
 }
 
@@ -273,13 +269,21 @@ func printerOutErr() {
 					// using "UUID of player" since minecraft server v1.12.2 does not use "joined the game"
 					case strings.Contains(lineContent, "UUID of player"):
 						servstats.Stats.PlayerCount++
-						errco.NewLogln(errco.TYPE_INF, errco.LVL_2, errco.ERROR_NIL, "A PLAYER JOINED THE SERVER! - %d players online", servstats.Stats.PlayerCount)
+						errco.NewLogln(errco.TYPE_INF, errco.LVL_1, errco.ERROR_NIL, "A PLAYER JOINED THE SERVER! - %d players online", servstats.Stats.PlayerCount)
 
 					// player leaves the server
 					// using "lost connection" (instead of "left the game") because it's more general (issue #116)
 					case strings.Contains(lineContent, "lost connection"):
 						servstats.Stats.PlayerCount--
-						errco.NewLogln(errco.TYPE_INF, errco.LVL_2, errco.ERROR_NIL, "A PLAYER LEFT THE SERVER! - %d players online", servstats.Stats.PlayerCount)
+
+						// if player count has no sense, reset it from a more reliable source
+						if servstats.Stats.PlayerCount < 0 {
+							errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "wrong playercount (%d), resetting it from a more reliable source", servstats.Stats.PlayerCount)
+							servstats.Stats.PlayerCount = countPlayerSafe()
+						}
+
+						errco.NewLogln(errco.TYPE_INF, errco.LVL_1, errco.ERROR_NIL, "A PLAYER LEFT THE SERVER! - %d players online", servstats.Stats.PlayerCount)
+
 						// schedule soft freeze of ms
 						FreezeMSSchedule()
 
@@ -323,21 +327,25 @@ func printerOutErr() {
 	}()
 }
 
-// waitForExit manages:
-// ServStats.Status = STARTING / OFFLINE,
-// ServTerm.isActive = true / false,
-// ServTerm.startTime,
-// suspension refresher
+// waitForExit waits for server terminal to exit and manages:
+//
+// - ServTerm.isActive, ServTerm.startTime.
+//
+// - Stats.Status, Stats.Suspended, Stats.PlayerCount, Stats.LoadProgress.
+//
+// - Suspension refresher.
+//
 // [goroutine]
 func waitForExit() {
 	ServTerm.IsActive = true
+	ServTerm.startTime = time.Now()
 	errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "terminal started")
 
 	servstats.Stats.Status = errco.SERVER_STATUS_STARTING
+	servstats.Stats.Suspended = false
+	servstats.Stats.PlayerCount = 0
+	servstats.Stats.LoadProgress = "0%"
 	errco.NewLogln(errco.TYPE_INF, errco.LVL_1, errco.ERROR_NIL, "MINECRAFT SERVER IS STARTING!")
-
-	// set terminal start time
-	ServTerm.startTime = time.Now()
 
 	// start suspension refresher
 	stopSuspendRefresherC := make(chan bool, 1)
@@ -356,6 +364,8 @@ func waitForExit() {
 
 	servstats.Stats.Status = errco.SERVER_STATUS_OFFLINE
 	servstats.Stats.Suspended = false
+	servstats.Stats.PlayerCount = 0
+	servstats.Stats.LoadProgress = "0%"
 	errco.NewLogln(errco.TYPE_INF, errco.LVL_1, errco.ERROR_NIL, "MINECRAFT SERVER IS OFFLINE!")
 
 	ServTerm.IsActive = false
