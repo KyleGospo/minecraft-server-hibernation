@@ -17,7 +17,7 @@ COMMIT COLLECTION
 */
 
 var (
-	MshVersion string = "v2.4.9"  // msh version
+	MshVersion string = "v2.4.10" // msh version
 	MshCommit  string = "-------" // msh commit
 
 	// msh program
@@ -48,7 +48,8 @@ func MshMgr() {
 
 	for {
 		// msh termination signal is received
-		<-msh.sigExit
+		sig := <-msh.sigExit
+		errco.NewLogln(errco.TYPE_INF, errco.LVL_1, errco.ERROR_NIL, "received signal: %s", sig.String())
 
 		// stop the minecraft server forcefully
 		logMsh := servctrl.FreezeMS(true)
