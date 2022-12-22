@@ -252,7 +252,6 @@ func printerOutErr() {
 				// Continue if line does not contain ": "
 				// (it does not adhere to expected log format or it is a multiline java exception)
 				if !strings.Contains(line, ": ") {
-					errco.NewLogln(errco.TYPE_WAR, errco.LVL_2, errco.ERROR_SERVER_UNEXP_OUTPUT, "line does not adhere to expected log format")
 					continue
 				}
 
@@ -262,10 +261,6 @@ func printerOutErr() {
 
 				if strings.Contains(lineHeader, "INFO") {
 					switch {
-					// player sends a chat message
-					case strings.HasPrefix(lineContent, "<") || strings.HasPrefix(lineContent, "["):
-						errco.NewLogln(errco.TYPE_INF, errco.LVL_2, errco.ERROR_NIL, "a chat message was sent")
-
 					// player leaves the server
 					case strings.Contains(lineContent, "lost connection:"): // "lost connection" is more general compared to "left the game" (even too much: player might write it in chat -> added ":")
 						FreezeMSSchedule()

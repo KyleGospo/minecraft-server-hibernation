@@ -6,14 +6,15 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"msh/lib/config"
 	"msh/lib/errco"
 	"msh/lib/model"
 	"msh/lib/servstats"
-	"msh/lib/utility"
 )
 
 // countPlayerSafe returns the number of players on the server.
@@ -55,15 +56,25 @@ func countPlayerSafe() int {
 
 // getPlayersByListCom returns the number of players using "list" command
 func getPlayersByListCom() (int, *errco.MshLog) {
-	outStr, logMsh := Execute("list")
+	output, logMsh := Execute("list")
 	if logMsh != nil {
 		return 0, logMsh.AddTrace()
 	}
-	playersStr, logMsh := utility.StrBetween(outStr, "There are ", " of a max")
-	if logMsh != nil {
-		return 0, logMsh.AddTrace()
+
+	// return if output has unexpected format
+	if !strings.Contains(output, "INFO]:") {
+		return 0, errco.NewLog(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_SERVER_UNEXP_OUTPUT, "string does not contain \"INFO]:\"")
 	}
-	players, err := strconv.Atoi(playersStr)
+
+	// check test function for possible `list` outputs
+	firstNumber := regexp.MustCompile(`\d+`).FindString(strings.Split(output, "INFO]:")[1])
+
+	// check if firstNumber has been found
+	if firstNumber == "" {
+		return 0, errco.NewLog(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_SERVER_UNEXP_OUTPUT, "firstNumber string is empty")
+	}
+
+	players, err := strconv.Atoi(firstNumber)
 	if err != nil {
 		return 0, errco.NewLog(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_CONVERSION, err.Error())
 	}
