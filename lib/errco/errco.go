@@ -2,9 +2,9 @@ package errco
 
 import (
 	"fmt"
+	"log"
 	"runtime"
 	"strings"
-	"time"
 )
 
 // DebugLvl specify the level of debugging
@@ -25,15 +25,19 @@ type LogTyp string
 type LogLvl int
 type LogCod int
 
+// COLOR_GRAY is "\033[1m\033[30m" instead of "\033[1;30m"
+// because `log.SetOutput(l.Stdout())` makes the color disappear for the second case
+// https://github.com/gekware/minecraft-server-hibernation/blob/92607c76d9c9f872153578a612e88a5147a663ee/lib/input/input.go#L44
+
 const (
 	COLOR_RESET  = "\033[0m"
-	COLOR_GRAY   = "\033[1;30m"
-	COLOR_RED    = "\033[0;31m"
-	COLOR_GREEN  = "\033[0;32m"
-	COLOR_YELLOW = "\033[0;33m"
-	COLOR_BLUE   = "\033[0;34m"
-	COLOR_PURPLE = "\033[0;35m"
-	COLOR_CYAN   = "\033[0;36m"
+	COLOR_GRAY   = "\033[1m\033[30m"
+	COLOR_RED    = "\033[31m"
+	COLOR_GREEN  = "\033[32m"
+	COLOR_YELLOW = "\033[33m"
+	COLOR_BLUE   = "\033[34m"
+	COLOR_PURPLE = "\033[35m"
+	COLOR_CYAN   = "\033[36m"
 )
 
 // NewLog returns a new msh log object.
@@ -72,9 +76,9 @@ func NewLogln(t LogTyp, l LogLvl, c LogCod, m string, a ...interface{}) *MshLog 
 //
 // returns the original log for convenience.
 // returns nil if msh log struct is nil.
-func (log *MshLog) Log(tracing bool) *MshLog {
+func (logMsh *MshLog) Log(tracing bool) *MshLog {
 	// return immediately if original log is nil
-	if log == nil {
+	if logMsh == nil {
 		return nil
 	}
 
@@ -82,16 +86,16 @@ func (log *MshLog) Log(tracing bool) *MshLog {
 
 	// add trace if requested
 	if tracing {
-		log.Ori = Trace(2) + LogOri(": ") + log.Ori
+		logMsh.Ori = Trace(2) + LogOri(": ") + logMsh.Ori
 	}
 
 	// return original log if log level is not high enough
-	if log.Lvl > DebugLvl {
-		return log
+	if logMsh.Lvl > DebugLvl {
+		return logMsh
 	}
 
 	// make a copy of original log
-	logMod := *log
+	logMod := *logMsh
 
 	// -------- operations on copied log --------
 
@@ -102,8 +106,8 @@ func (log *MshLog) Log(tracing bool) *MshLog {
 		logMod.Mex = COLOR_CYAN + logMod.Mex + COLOR_RESET
 	}
 
-	// set logMod colors depending on logMod type
 	var t string
+	// set logMod colors depending on logMod type
 	switch logMod.Typ {
 	case TYPE_INF:
 		t = COLOR_BLUE + string(logMod.Typ) + COLOR_RESET
@@ -121,14 +125,12 @@ func (log *MshLog) Log(tracing bool) *MshLog {
 	// print logMod depending on logMod type
 	switch logMod.Typ {
 	case TYPE_INF, TYPE_SER, TYPE_BYT:
-		fmt.Printf("%s [%-16s %-4s] %s\n",
-			time.Now().Format("2006/01/02 15:04:05"),
+		log.Printf("[%-13s %-4s] %s\n",
 			t,
 			strings.Repeat("≡", 4-int(logMod.Lvl)),
 			fmt.Sprintf(logMod.Mex, logMod.Arg...))
 	case TYPE_WAR, TYPE_ERR:
-		fmt.Printf("%s [%-16s %-4s] %s %s %s\n",
-			time.Now().Format("2006/01/02 15:04:05"),
+		log.Printf("[%-13s %-4s] %s %s %s\n",
 			t,
 			strings.Repeat("≡", 4-int(logMod.Lvl)),
 			LogOri(COLOR_YELLOW)+logMod.Ori+":"+LogOri(COLOR_RESET),
@@ -137,7 +139,7 @@ func (log *MshLog) Log(tracing bool) *MshLog {
 	}
 
 	// return original log
-	return log
+	return logMsh
 }
 
 // AddTrace adds the caller function to the msh log trace
