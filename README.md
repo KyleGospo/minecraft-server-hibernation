@@ -35,7 +35,7 @@ go build .
 -----
 ### INSTRUCTIONS:
 1. Install the Minecraft server you want
-2. Edit the parameters in the configuration file as needed (*check definitions*):
+2. Edit the parameters in `msh-config.json` as needed (*check definitions*):
     - Folder
     - FileName
     - StartServerParam
@@ -51,13 +51,16 @@ go build .
 6. run the msh executable
 7. You can connect to the server using the port from the configuration file (default 25555).
 
-\* = it's not compulsory to modify this parameter
+_\* = it's not compulsory to modify this parameter_
 
-_remember to automatically run msh at reboot_
+#### notes
+- _`msh-config.json` is not generated automatically. You will need to download it from the [releases](https://github.com/gekware/minecraft-server-hibernation/releases)._
+- _Automatically run msh at reboot._
+- _In `server.properties` set `server-ip=0.0.0.0` to avoid errors when msh tries to connect to the minecraft server._
+- _You must remove all braces from `msh-config.json`._  
 
 -----
 ### DEFINITIONS:
-- _only text in braces needs to be modified (remember to remove all braces)_  
 - _Some of these parameters can be configured with command-line arguments (--help to know which)_  
 
 Location of server folder and executable. You can find protocol/version [here](https://wiki.vg/Protocol_version_numbers) (but msh should set them automatically):
@@ -86,7 +89,7 @@ Set the logging level for debug purposes
 "Debug": 1
 # 0 - NONE: no log
 # 1 - BASE: basic log
-# 2 - SERV: mincraft server log
+# 2 - SERV: minecraft server log
 # 3 - DEVE: developement log
 # 4 - BYTE: connection bytes log
 ```
