@@ -14,10 +14,11 @@ import (
 /*
 COMMIT COLLECTION
 - this is commit 700!
+- this is commit 800!
 */
 
 var (
-	MshVersion string = "v2.4.10" // msh version
+	MshVersion string = "v2.4.11" // msh version
 	MshCommit  string = "-------" // msh commit
 
 	// msh program

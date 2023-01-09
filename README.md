@@ -15,7 +15,7 @@ _(for vanilla/modded on linux/windows/macos)_
     </a>
 </p>
 
-version: v2.4.10  
+version: v2.4.11  
 Copyright (C) 2019-2022 [gekigek99](https://github.com/gekigek99)  
 
 Check the [releases](https://github.com/gekware/minecraft-server-hibernation/releases) to download the binaries (for linux, windows and macos)
@@ -94,9 +94,12 @@ Set the logging level for debug purposes
 # 4 - BYTE: connection bytes log
 ```
 
-Port to which players can connect
+Ports configuration
+- _MshPort and MshPortQuery must be different from the respective ones in `server.properties`_
+- _msh enables query handling if `enable-query=true` in `server.properties`_
 ```yaml
-"ListenPort": 25555
+"MshPort": 25555		# port to which players can join
+"MshPortQuery": 25555	# port to which stats query requests are performed 
 ```
 
 TimeBeforeStoppingEmptyServer sets the time (after the last player disconnected) that msh waits before hibernating the minecraft server
@@ -150,8 +153,11 @@ _unknown clients are not allowed to start the server, but can join_
 
 Author: [gekigek99](https://github.com/gekigek99)  
 
-Contributors: [najtin](https://github.com/najtin/minecraft-server-hibernation), [f8ith](https://github.com/f8ith/minecraft-server-hibernation), [Br31zh](https://github.com/Br31zh/minecraft-server-hibernation), [someotherotherguy](https://github.com/someotherotherguy/minecraft-server-hibernation), [navidmafi](https://github.com/navidmafi), [cromefire](https://github.com/cromefire), [andreblanke](https://github.com/andreblanke), [KyleGospo](https://github.com/KyleGospo)  
-Docker branch (outdated): [lubocode](https://github.com/lubocode/minecraft-server-hibernation)
+Contributors: [najtin](https://github.com/najtin), [f8ith](https://github.com/f8ith), [Br31zh](https://github.com/Br31zh), [someotherotherguy](https://github.com/someotherotherguy), [navidmafi](https://github.com/navidmafi), [cromefire](https://github.com/cromefire), [andreblanke](https://github.com/andreblanke), [KyleGospo](https://github.com/KyleGospo)  
+
+Docker branch (outdated): [lubocode](https://github.com/lubocode/minecraft-server-hibernation)  
+
+Pterodactyl egg: [BolverBlitz](https://github.com/gekware/minecraft-server-hibernation-pterodactyl-egg)  
 
 _If you wish to contribute, please create a pull request using the dev branch as the base for your changes_
 
