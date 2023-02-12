@@ -168,8 +168,8 @@ func (c *Configuration) loadRuntime(confdef *Configuration) *errco.MshLog {
 	// c.Msh.ID should not be set by a flag
 	flag.IntVar(&c.Msh.MshPort, "port", c.Msh.MshPort, "Specify msh port.")
 	flag.Int64Var(&c.Msh.TimeBeforeStoppingEmptyServer, "timeout", c.Msh.TimeBeforeStoppingEmptyServer, "Specify time to wait before stopping minecraft server.")
-	flag.BoolVar(&c.Msh.SuspendAllow, "SuspendAllow", c.Msh.SuspendAllow, "Specify if minecraft server process can be suspended.")
-	flag.IntVar(&c.Msh.SuspendRefresh, "SuspendRefresh", c.Msh.SuspendRefresh, "Specify how often the suspended minecraft server process must be refreshed.")
+	flag.BoolVar(&c.Msh.SuspendAllow, "suspendallow", c.Msh.SuspendAllow, "Specify if minecraft server process can be suspended.")
+	flag.IntVar(&c.Msh.SuspendRefresh, "suspendrefresh", c.Msh.SuspendRefresh, "Specify how often the suspended minecraft server process must be refreshed.")
 	flag.StringVar(&c.Msh.InfoHibernation, "infohibe", c.Msh.InfoHibernation, "Specify hibernation info.")
 	flag.StringVar(&c.Msh.InfoStarting, "infostar", c.Msh.InfoStarting, "Specify starting info.")
 	flag.BoolVar(&c.Msh.NotifyUpdate, "notifyupd", c.Msh.NotifyUpdate, "Specify if update notifications are allowed.")
@@ -214,8 +214,11 @@ func (c *Configuration) loadRuntime(confdef *Configuration) *errco.MshLog {
 
 			// start server to generate eula.txt (and server.properties)
 			errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "starting minecraft server to generate eula.txt file...")
-			cSplit := strings.Split(c.Commands.StartServer, " ")
-			cmd := exec.Command(cSplit[0], cSplit[1:]...)
+			command, logMsh := c.BuildCommandStartServer()
+			if logMsh != nil {
+				return logMsh.AddTrace()
+			}
+			cmd := exec.Command(command[0], command[1:]...)
 			cmd.Dir = c.Server.Folder
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
@@ -300,4 +303,27 @@ func (c *Configuration) loadRuntime(confdef *Configuration) *errco.MshLog {
 	}
 
 	return nil
+}
+
+// BuildCommandStartServer builds the start server command by replacing placeholders.
+//
+// If generated command has less than 2 arguments, it is considered invalid and error returned.
+func (c *Configuration) BuildCommandStartServer() ([]string, *errco.MshLog) {
+	var command = []string{}
+	for _, ss := range strings.Fields(c.Commands.StartServer) {
+		switch ss {
+		case "<Server.FileName>":
+			command = append(command, c.Server.FileName)
+		case "<Commands.StartServerParam>":
+			command = append(command, strings.Fields(c.Commands.StartServerParam)...)
+		default:
+			command = append(command, ss)
+		}
+	}
+
+	if len(command) < 2 {
+		return command, errco.NewLog(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_INVALID_COMMAND, "generated command to start minecraft server is invalid")
+	}
+
+	return command, nil
 }
