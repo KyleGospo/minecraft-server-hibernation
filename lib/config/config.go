@@ -112,6 +112,29 @@ func (c *Configuration) Save() *errco.MshLog {
 	return nil
 }
 
+// BuildCommandStartServer builds the start server command by replacing placeholders.
+//
+// If generated command has less than 2 arguments, it is considered invalid and error returned.
+func (c *Configuration) BuildCommandStartServer() ([]string, *errco.MshLog) {
+	var command = []string{}
+	for _, ss := range strings.Fields(c.Commands.StartServer) {
+		switch ss {
+		case "<Server.FileName>":
+			command = append(command, c.Server.FileName)
+		case "<Commands.StartServerParam>":
+			command = append(command, strings.Fields(c.Commands.StartServerParam)...)
+		default:
+			command = append(command, ss)
+		}
+	}
+
+	if len(command) < 2 {
+		return command, errco.NewLog(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_INVALID_COMMAND, "generated command to start minecraft server is invalid")
+	}
+
+	return command, nil
+}
+
 // loadDefault loads config file to config variable
 func (c *Configuration) loadDefault() *errco.MshLog {
 	// get working directory
@@ -170,18 +193,20 @@ func (c *Configuration) loadRuntime(confdef *Configuration) *errco.MshLog {
 	// c.Msh.ID should not be set by a flag
 	flag.IntVar(&c.Msh.MshPort, "port", c.Msh.MshPort, "Specify msh port.")
 	flag.Int64Var(&c.Msh.TimeBeforeStoppingEmptyServer, "timeout", c.Msh.TimeBeforeStoppingEmptyServer, "Specify time to wait before stopping minecraft server.")
-	flag.BoolVar(&c.Msh.SuspendAllow, "suspendallow", c.Msh.SuspendAllow, "Specify if minecraft server process can be suspended.")
+	flag.BoolVar(&c.Msh.SuspendAllow, "suspendallow", c.Msh.SuspendAllow, "Enables minecraft server process suspension.")
 	flag.IntVar(&c.Msh.SuspendRefresh, "suspendrefresh", c.Msh.SuspendRefresh, "Specify how often the suspended minecraft server process must be refreshed.")
 	flag.StringVar(&c.Msh.InfoHibernation, "infohibe", c.Msh.InfoHibernation, "Specify hibernation info.")
 	flag.StringVar(&c.Msh.InfoStarting, "infostar", c.Msh.InfoStarting, "Specify starting info.")
-	flag.BoolVar(&c.Msh.NotifyUpdate, "notifyupd", c.Msh.NotifyUpdate, "Specify if update notifications are allowed.")
-	flag.BoolVar(&c.Msh.NotifyMessage, "notifymes", c.Msh.NotifyMessage, "Specify if message notifications are allowed.")
+	flag.BoolVar(&c.Msh.NotifyUpdate, "notifyupd", c.Msh.NotifyUpdate, "Enables update notifications.")
+	flag.BoolVar(&c.Msh.NotifyMessage, "notifymes", c.Msh.NotifyMessage, "Enables message notifications.")
 	// c.Msh.Whitelist (type []string, not worth to make it a flag)
-	flag.BoolVar(&c.Msh.WhitelistImport, "wlimport", c.Msh.WhitelistImport, "Specify is minecraft server whitelist should be imported")
+	flag.BoolVar(&c.Msh.WhitelistImport, "wlimport", c.Msh.WhitelistImport, "Enables minecraft server whitelist import.")
+	flag.BoolVar(&c.Msh.ShowResourceUsage, "showres", c.Msh.ShowResourceUsage, "Enables logging of msh resource usage (cpu / mem percentage).")
+	flag.BoolVar(&c.Msh.ShowInternetUsage, "showint", c.Msh.ShowInternetUsage, "Enables logging of msh interent usage (->clients / ->server).")
 
 	// backward compatibility
 	flag.IntVar(&c.Commands.StopServerAllowKill, "allowKill", c.Commands.StopServerAllowKill, "Specify after how many seconds the server should be killed (if stop command fails).") // msh pterodactyl egg
-	flag.BoolVar(&c.Msh.SuspendAllow, "SuspendAllow", c.Msh.SuspendAllow, "Specify if minecraft server process can be suspended.")                                                   // msh pterodactyl egg
+	flag.BoolVar(&c.Msh.SuspendAllow, "SuspendAllow", c.Msh.SuspendAllow, "Enables minecraft server process suspension.")                                                            // msh pterodactyl egg
 	flag.IntVar(&c.Msh.SuspendRefresh, "SuspendRefresh", c.Msh.SuspendRefresh, "Specify how often the suspended minecraft server process must be refreshed.")                        // msh pterodactyl egg
 
 	// specify the usage when there is an error in the arguments
@@ -316,27 +341,4 @@ func (c *Configuration) loadRuntime(confdef *Configuration) *errco.MshLog {
 	}
 
 	return nil
-}
-
-// BuildCommandStartServer builds the start server command by replacing placeholders.
-//
-// If generated command has less than 2 arguments, it is considered invalid and error returned.
-func (c *Configuration) BuildCommandStartServer() ([]string, *errco.MshLog) {
-	var command = []string{}
-	for _, ss := range strings.Fields(c.Commands.StartServer) {
-		switch ss {
-		case "<Server.FileName>":
-			command = append(command, c.Server.FileName)
-		case "<Commands.StartServerParam>":
-			command = append(command, strings.Fields(c.Commands.StartServerParam)...)
-		default:
-			command = append(command, ss)
-		}
-	}
-
-	if len(command) < 2 {
-		return command, errco.NewLog(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_INVALID_COMMAND, "generated command to start minecraft server is invalid")
-	}
-
-	return command, nil
 }

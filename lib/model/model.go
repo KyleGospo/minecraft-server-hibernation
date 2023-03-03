@@ -28,6 +28,8 @@ type Configuration struct {
 		NotifyMessage                 bool     `json:"NotifyMessage"`
 		Whitelist                     []string `json:"Whitelist"`
 		WhitelistImport               bool     `json:"WhitelistImport"`
+		ShowResourceUsage             bool     `json:"ShowResourceUsage"`
+		ShowInternetUsage             bool     `json:"ShowInternetUsage"`
 	} `json:"Msh"`
 }
 
