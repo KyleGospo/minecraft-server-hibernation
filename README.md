@@ -16,7 +16,7 @@ _(for vanilla/modded on linux/windows/macos)_
 </p>
 
 version: v2.4.12  
-Copyright (C) 2019-2022 [gekigek99](https://github.com/gekigek99)  
+Copyright (C) 2019-2023 [gekigek99](https://github.com/gekigek99)  
 
 Check the [releases](https://github.com/gekware/minecraft-server-hibernation/releases) to download the binaries (for linux, windows and macos)
 
@@ -148,13 +148,13 @@ _unknown clients are not allowed to start the server, but can join_
 "WhitelistImport": false
 ```
 
-ShowResourceUsage enables the logging of the msh tree process cpu/ram usage percent
+ShowResourceUsage enables the logging of the msh tree process cpu/ram usage percent  
 _for debug purposes (debug level 3 required)_
 ```yaml
 "ShowResourceUsage": false
 ```
 
-ShowInternetUsage enables the logging of the msh connection usage
+ShowInternetUsage enables the logging of the msh connection usage  
 _for debug purposes (debug level 3 required)_
 ```yaml
 "ShowInternetUsage": false
