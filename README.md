@@ -41,16 +41,14 @@ go build .
 -----
 ### INSTRUCTIONS:
 1. Install the Minecraft server you want
-2. Edit the parameters in `msh-config.json` as needed (*check definitions*):
+2. Edit `msh-config.json` as needed (*check definitions*):
     - Folder
     - FileName
     - StartServerParam
     - StopServer
 	- Whitelist
-    - \* StopServerAllowKill
-    - \* HibernationInfo and StartingInfo
     - \* TimeBeforeStoppingEmptyServer
-    - \* NotifyUpdate
+    - \* [others...](#DEFINITIONS)
 3. \* put the frozen icon you want in `path/to/server.jar/folder` (must be called `server-icon-frozen`, supported formats: `.png`, `.jpg`)
 4. on the router (to which the server is connected): forward port 25555 to server ([tutorial](https://www.wikihow.com/Open-Ports#Opening-Router-Firewall-Ports))
 5. on the server: open port 25555 (example: [ufw firewall](https://www.configserverfirewall.com/ufw-ubuntu-firewall/ubuntu-firewall-open-port/))
@@ -67,7 +65,7 @@ _\* = it's not compulsory to modify this parameter_
 
 -----
 ### DEFINITIONS:
-- _Some of these parameters can be configured with command-line arguments (--help to know which)_  
+- _Some of these parameters can be configured with command-line arguments (`msh --help` to know more) (user supplied arguments will override config)_  
 
 Location of server folder and executable. You can find protocol/version [here](https://wiki.vg/Protocol_version_numbers) (but msh should set them automatically):
 ```yaml
@@ -102,10 +100,11 @@ Set the logging level for debug purposes
 
 Ports configuration
 - _MshPort and MshPortQuery must be different from the respective ones in `server.properties`_
-- _msh enables query handling if `enable-query=true` in `server.properties`_
+- _query handling is enabled if `EnableQuery: true` in `msh-config.json` or `enable-query=true` in `server.properties`_
 ```yaml
 "MshPort": 25555		# port to which players can join
-"MshPortQuery": 25555	# port to which stats query requests are performed 
+"MshPortQuery": 25555	# port to which stats query requests are performed from clients
+"EnableQuery": true		# enable query handling
 ```
 
 TimeBeforeStoppingEmptyServer sets the time (after the last player disconnected) that msh waits before hibernating the minecraft server
@@ -166,7 +165,6 @@ _for debug purposes (debug level 3 required)_
 ```
 
 -----
-
 ### CREDITS:  
 
 Author: [gekigek99](https://github.com/gekigek99)  
