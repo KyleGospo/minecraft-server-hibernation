@@ -15,50 +15,57 @@ _(for vanilla/modded on linux/windows/macos)_
     </a>
 </p>
 
-version: v2.4.10  
-Copyright (C) 2019-2022 [gekigek99](https://github.com/gekigek99)  
+version: v2.5.0  
+Copyright (C) 2019-2023 [gekigek99](https://github.com/gekigek99)  
 
-Check the [releases](https://github.com/gekware/minecraft-server-hibernation/releases) to download the binaries (for linux, windows and macos)
+Join our [discord server](https://discord.com/invite/guKB6ETeMF)!  
 
-_You can compile msh from the dev branch to access a more recent version, but note that it may still need to be tested_
+-----
+### RELEASES:
+Download the latest **releases** on [github](https://github.com/gekware/minecraft-server-hibernation/releases) (for linux, windows and macos)  
+
+_You can download msh from [gekware](https://msh.gekware.net/) or [compile the dev branch](#PROGRAM-COMPILATION) to use a more recent version, but note that it may still need to be tested_
 
 -----
 ### PROGRAM COMPILATION:
 This version was successfully compiled in go version 1.19  
 Compilation procedure:
-```
+```command
 git clone https://github.com/gekware/minecraft-server-hibernation.git  
 cd minecraft-server-hibernation/  
+git submodule update --init
+git checkout dev # execute only if you want to compile the dev branch
 go build .
 ```
 
 -----
 ### INSTRUCTIONS:
 1. Install the Minecraft server you want
-2. Edit the parameters in the configuration file as needed (*check definitions*):
+2. Edit `msh-config.json` as needed (*check definitions*):
     - Folder
     - FileName
     - StartServerParam
     - StopServer
 	- Whitelist
-    - \* StopServerAllowKill
-    - \* HibernationInfo and StartingInfo
     - \* TimeBeforeStoppingEmptyServer
-    - \* NotifyUpdate
+    - \* [others...](#DEFINITIONS)
 3. \* put the frozen icon you want in `path/to/server.jar/folder` (must be called `server-icon-frozen`, supported formats: `.png`, `.jpg`)
 4. on the router (to which the server is connected): forward port 25555 to server ([tutorial](https://www.wikihow.com/Open-Ports#Opening-Router-Firewall-Ports))
 5. on the server: open port 25555 (example: [ufw firewall](https://www.configserverfirewall.com/ufw-ubuntu-firewall/ubuntu-firewall-open-port/))
 6. run the msh executable
 7. You can connect to the server using the port from the configuration file (default 25555).
 
-\* = it's not compulsory to modify this parameter
+_\* = it's not compulsory to modify this parameter_
 
-_remember to automatically run msh at reboot_
+#### notes
+- _`msh-config.json` is not generated automatically. You will need to download it from the [releases](https://github.com/gekware/minecraft-server-hibernation/releases)._
+- _Automatically run msh at reboot._
+- _In `server.properties` set `server-ip=0.0.0.0` to avoid errors when msh tries to connect to the minecraft server._
+- _You must remove all braces from `msh-config.json`._  
 
 -----
 ### DEFINITIONS:
-- _only text in braces needs to be modified (remember to remove all braces)_  
-- _Some of these parameters can be configured with command-line arguments (--help to know which)_  
+- _Some of these parameters can be configured with command-line arguments (`msh --help` to know more) (user supplied arguments will override config)_  
 
 Location of server folder and executable. You can find protocol/version [here](https://wiki.vg/Protocol_version_numbers) (but msh should set them automatically):
 ```yaml
@@ -86,32 +93,43 @@ Set the logging level for debug purposes
 "Debug": 1
 # 0 - NONE: no log
 # 1 - BASE: basic log
-# 2 - SERV: mincraft server log
+# 2 - SERV: minecraft server log
 # 3 - DEVE: developement log
 # 4 - BYTE: connection bytes log
 ```
 
-Port to which players can connect
+Ports configuration
+- _MshPort and MshPortQuery must be different from the respective ones in `server.properties`_
+- _query handling is enabled if `EnableQuery: true` in `msh-config.json` AND `enable-query=true` in `server.properties`_
 ```yaml
-"ListenPort": 25555
+"MshPort": 25555		# port to which players can join
+"MshPortQuery": 25555	# port to which stats query requests are performed from clients
+"EnableQuery": true		# enable query handling
 ```
 
-*30 seconds* is the time (after the last player disconnected) that msh waits before hibernating the minecraft server
+TimeBeforeStoppingEmptyServer sets the time (after the last player disconnected) that msh waits before hibernating the minecraft server
 ```yaml
 "TimeBeforeStoppingEmptyServer": 30
 ```
 
-SuspendAllow allow the server to suspend server process when there are no players online  
+SuspendAllow enables msh to suspend minecraft server process when there are no players online  
 _To mitigate ram usage you can set a high swappiness (on linux)_  
 - pro:  player wait time to join frozen server is ~0  
 - cons: ram usage as minecraft server without msh (cpu remains ~0)  
 
-SuspendRefresh enables refresh of minecraft server suspension every set seconds (to avoid unexplained crashes at unsuspension)
-- set -1 to disable
-- set it to a value that suits you
+SuspendRefresh enables refresh of minecraft server suspension every set seconds (to avoid watchdog crash at unsuspension)  
+- setting `these variables` and `SuspendRefresh` might prevent minecraft server watchdog crash when `SuspendAllow` is enabled  
+
+|       file        |                       variable                       |
+| ----------------- | ---------------------------------------------------- |
+| server.properties | `max-tick-time= -1`                                  |
+| spigot.yml        | `timeout-time: -1`, `restart-on-crash: false`        |
+| bukkit.yml        | `warn-on-overload: false`                            |
+| paper-global.yml  | `early-warning-delay: -1`, `early-warning-every: -1` |
+
 ```yaml
 "SuspendAllow": false
-"SuspendRefresh": -1
+"SuspendRefresh": -1	# set -1 to disable, advised value: 120 (reduce if minecraft server keeps crashing)
 ```
 
 Hibernation and Starting server description
@@ -134,13 +152,24 @@ _unknown clients are not allowed to start the server, but can join_
 "WhitelistImport": false
 ```
 
------
+ShowResourceUsage enables the logging of the msh tree process cpu/ram usage percent  
+_for debug purposes (debug level 3 required)_
+```yaml
+"ShowResourceUsage": false
+```
 
+ShowInternetUsage enables the logging of the msh connection usage  
+_for debug purposes (debug level 3 required)_
+```yaml
+"ShowInternetUsage": false
+```
+
+-----
 ### CREDITS:  
 
 Author: [gekigek99](https://github.com/gekigek99)  
 
-Contributors: [najtin](https://github.com/najtin), [f8ith](https://github.com/f8ith), [Br31zh](https://github.com/Br31zh), [someotherotherguy](https://github.com/someotherotherguy), [navidmafi](https://github.com/navidmafi), [cromefire](https://github.com/cromefire), [andreblanke](https://github.com/andreblanke), [KyleGospo](https://github.com/KyleGospo)  
+Contributors: [najtin](https://github.com/najtin), [f8ith](https://github.com/f8ith), [Br31zh](https://github.com/Br31zh), [someotherotherguy](https://github.com/someotherotherguy), [navidmafi](https://github.com/navidmafi), [cromefire](https://github.com/cromefire), [andreblanke](https://github.com/andreblanke), [KyleGospo](https://github.com/KyleGospo), [A-wels](https://github.com/A-wels)  
 
 Docker branch (outdated): [lubocode](https://github.com/lubocode/minecraft-server-hibernation)  
 

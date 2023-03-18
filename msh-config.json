@@ -14,7 +14,9 @@
   "Msh": {
     "Debug": 1,
     "ID": "",
-    "ListenPort": 25555,
+    "MshPort": 25555,
+    "MshPortQuery": 25555,
+    "EnableQuery": true,
     "TimeBeforeStoppingEmptyServer": 30,
     "SuspendAllow": false,
     "SuspendRefresh": -1,
@@ -23,6 +25,8 @@
     "NotifyUpdate": true,
     "NotifyMessage": true,
     "Whitelist": [],
-    "WhitelistImport": false
+    "WhitelistImport": false,
+    "ShowResourceUsage": false,
+    "ShowInternetUsage": false
   }
 }

@@ -17,7 +17,9 @@ type Configuration struct {
 	Msh struct {
 		Debug                         int      `json:"Debug"`
 		ID                            string   `json:"ID"`
-		ListenPort                    int      `json:"ListenPort"`
+		MshPort                       int      `json:"MshPort"`
+		MshPortQuery                  int      `json:"MshPortQuery"`
+		EnableQuery                   bool     `json:"EnableQuery"`
 		TimeBeforeStoppingEmptyServer int64    `json:"TimeBeforeStoppingEmptyServer"`
 		SuspendAllow                  bool     `json:"SuspendAllow"`   // specify if msh should suspend java server process
 		SuspendRefresh                int      `json:"SuspendRefresh"` // specify if msh should refresh java server process suspension and every how many seconds
@@ -27,6 +29,8 @@ type Configuration struct {
 		NotifyMessage                 bool     `json:"NotifyMessage"`
 		Whitelist                     []string `json:"Whitelist"`
 		WhitelistImport               bool     `json:"WhitelistImport"`
+		ShowResourceUsage             bool     `json:"ShowResourceUsage"`
+		ShowInternetUsage             bool     `json:"ShowInternetUsage"`
 	} `json:"Msh"`
 }
 
@@ -75,7 +79,7 @@ type Api2Req struct {
 		CpuVendor string `json:"cpu-vendor"` // cpu vendor
 		CoresMsh  int    `json:"cores-msh"`  // cores for msh
 		CoresSys  int    `json:"cores-sys"`  // cores for system
-		Mem       int    `json:"mem"`        // system memory
+		Mem       int64  `json:"mem"`        // system memory
 	} `json:"machine"`
 	Server struct {
 		Uptime int    `json:"uptime"`  // mc server uptime
@@ -111,9 +115,11 @@ type GameRawMessage struct {
 	Bold  bool   `json:"bold"`
 }
 
-// struct for version.json of server JAR
+// struct for version.json of server JAR.
+// use 2 version json definitions as it might change depending on ms version.
 type VersionInfo struct {
-	Version  string `json:"release_target"`
+	Version1 string `json:"release_target"`
+	Version2 string `json:"name"`
 	Protocol int    `json:"protocol_version"`
 }
 

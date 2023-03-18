@@ -3,10 +3,10 @@ package conn
 import (
 	"bytes"
 	"encoding/json"
-	"io"
 	"math/big"
 	"net"
 	"strings"
+	"time"
 
 	"msh/lib/config"
 	"msh/lib/errco"
@@ -97,10 +97,10 @@ func buildMessage(reqType int, message string) []byte {
 
 // getReqType returns the request packet, type (INFO or JOIN).
 // Not player name as it's too difficult to extract.
-func getReqType(clientSocket net.Conn) ([]byte, int, *errco.MshLog) {
+func getReqType(clientConn net.Conn) ([]byte, int, *errco.MshLog) {
 	var dataReqFull []byte
 
-	data, logMsh := getClientPacket(clientSocket)
+	data, logMsh := getClientPacket(clientConn)
 	if logMsh != nil {
 		return nil, errco.CLIENT_REQ_UNKN, logMsh.AddTrace()
 	}
@@ -108,9 +108,9 @@ func getReqType(clientSocket net.Conn) ([]byte, int, *errco.MshLog) {
 	dataReqFull = data
 
 	// generate flags
-	listenPortByt := big.NewInt(int64(config.ListenPort)).Bytes() // calculates listen port in BigEndian bytes
-	reqFlagInfo := append(listenPortByt, byte(1))                 // flag contained in INFO request packet -> [99 211 1]
-	reqFlagJoin := append(listenPortByt, byte(2))                 // flag contained in JOIN request packet -> [99 211 2]
+	MshPortByt := big.NewInt(int64(config.MshPort)).Bytes() // calculates listen port in BigEndian bytes
+	reqFlagInfo := append(MshPortByt, byte(1))              // flag contained in INFO request packet -> [99 211 1]
+	reqFlagJoin := append(MshPortByt, byte(2))              // flag contained in JOIN request packet -> [99 211 2]
 
 	// extract request type key byte
 	reqTypeKeyByte := byte(0)
@@ -122,28 +122,40 @@ func getReqType(clientSocket net.Conn) ([]byte, int, *errco.MshLog) {
 	case reqTypeKeyByte == byte(1) || bytes.Contains(dataReqFull, reqFlagInfo):
 		// client is requesting server info
 		// example: [ 16 0 244 5 9 49 50 55 46 48 46 48 46 49 99 211 1 1 0 ]
-		//  ______________ case 1 _______________      _____________ case 2 _____________
-		// [ 16 ... x x x (listenPortBytes) 1 1 0] or [ 16 ... x x x (listenPortBytes) 1 ]
-		// [              ^---reqFlagInfo---^    ]    [              ^---reqFlagInfo---^ ]
-		// [    ^-------------16 bytes------^    ]    [    ^-------------16 bytes------^ ]
+		//  ______________ case 1 _____________      ____________ case 2 ___________
+		// [ 16 ... x x x (MshPortBytes) 1 1 0 ] or [ 16 ... x x x (MshPortBytes) 1 ]
+		// [              ^-reqFlagInfo--^     ]    [              ^-reqFlagInfo--^ ]
+		// [    ^-----------16 bytes-----^     ]    [    ^-----------16 bytes-----^ ]
 
 		return dataReqFull, errco.CLIENT_REQ_INFO, nil
 
 	case reqTypeKeyByte == byte(2) || bytes.Contains(dataReqFull, reqFlagJoin):
 		// client is trying to join the server
 		// example: [ 16 0 244 5 9 49 50 55 46 48 46 48 46 49 99 211 2 ]
-		//  _______________________ case 1 _________________________      ________________________ case 2 ___________________________
-		// [ 16 ... x x x (listenPortBytes) 2 x ... x (player name) ] or [ 16 ... x x x (listenPortBytes) 2 ][ x ... x (player name) ]
-		// [              ^---reqFlagJoin---^                       ]    [              ^---reqFlagJoin---^ ][                       ]
-		// [    ^-------------16 bytes------^                       ]    [    ^-------------16 bytes------^ ][                       ]
+		//  _______________________ case 1 ______________________      ________________________ case 2 ________________________
+		// [ 16 ... x x x (MshPortBytes) 2 x ... x (player name) ] or [ 16 ... x x x (MshPortBytes) 2 ][ x ... x (player name) ]
+		// [              ^-reqFlagJoin--^                       ]    [              ^-reqFlagJoin--^ ][                       ]
+		// [    ^-----------16 bytes-----^                       ]    [    ^-----------16 bytes-----^ ][                       ]
 
-		// msh doesn't know if it's a case 1 or 2: try get an other packet
-		// if EOF keep going
-		data, logMsh = getClientPacket(clientSocket)
-		if logMsh != nil && logMsh.Cod != errco.ERROR_CONN_EOF {
-			return nil, errco.CLIENT_REQ_UNKN, logMsh.AddTrace()
+		// after ms 1.19.3 not always there is a EOF after case 1/2
+		// it's important to calculate if msh should read an other packet
+		// bugfix #197
+		switch {
+		case len(dataReqFull) < int(dataReqFull[0])+1:
+			// case unexpected: should not be possible
+			return nil, errco.CLIENT_REQ_UNKN, errco.NewLog(errco.TYPE_WAR, errco.LVL_3, errco.ERROR_ANALYSIS, "unexpected data lenght")
+
+		case len(dataReqFull) == int(dataReqFull[0])+1:
+			// case 1: msh still has a packet to read
+			data, logMsh = getClientPacket(clientConn)
+			if logMsh != nil {
+				return nil, errco.CLIENT_REQ_UNKN, logMsh.AddTrace() // return request unknown as the request failed
+			}
+			dataReqFull = append(dataReqFull, data...)
+
+		case len(dataReqFull) > int(dataReqFull[0])+1:
+			// case 2 (probably): no need to read more data from client
 		}
-		dataReqFull = append(dataReqFull, data...)
 
 		return dataReqFull, errco.CLIENT_REQ_JOIN, nil
 
@@ -154,30 +166,42 @@ func getReqType(clientSocket net.Conn) ([]byte, int, *errco.MshLog) {
 
 // getPing performs msh PING response to the client PING request
 // (must be performed after msh INFO response)
-func getPing(clientSocket net.Conn) *errco.MshLog {
+func getPing(clientConn net.Conn) *errco.MshLog {
 	// read the first packet
-	pingData, logMsh := getClientPacket(clientSocket)
+	pingData, logMsh := getClientPacket(clientConn)
 	if logMsh != nil {
 		return logMsh.AddTrace()
 	}
 
 	switch {
+	case bytes.HasPrefix(pingData, []byte{9, 1, 0, 0, 0, 0, 0}):
+		// this is a normal ping
+		// packet is [9 1 0 0 0 0 0 89 73 114]
+		// using [9 1 0 0 0 0 0] as prefix is a conservative check
+		// in case other "normal" pings are discovered it's possible to use a shorter/different prefix check
+
 	case bytes.Equal(pingData, []byte{1, 0}):
 		// packet is [1 0]
 		// read the second packet
-		pingData, logMsh = getClientPacket(clientSocket)
+		pingData, logMsh = getClientPacket(clientConn)
 		if logMsh != nil {
 			return logMsh.AddTrace()
 		}
 
-	case bytes.Equal(pingData[:2], []byte{1, 0}):
+	// bufix #202: don't use `bytes.Equal(pingData[:2], []byte{1, 0})`
+	// (if pingData == [1] then pingData[:2] == [1 0])
+	// this results in pingData[2:] -> slice bounds out of range [2:1]
+	case bytes.HasPrefix(pingData, []byte{1, 0}):
 		// packet is [1 0 9 1 0 0 0 0 0 89 73 114]
 		// remove first 2 bytes: [1 0 9 1 0 0 0 0 0 89 73 114] -> [9 1 0 0 0 0 0 89 73 114]
 		pingData = pingData[2:]
+
+	default:
+		return errco.NewLog(errco.TYPE_WAR, errco.LVL_3, errco.ERROR_PING_PACKET_UNKNOWN, "received unknown ping packet: %v", pingData)
 	}
 
 	// answer ping
-	clientSocket.Write(pingData)
+	clientConn.Write(pingData)
 
 	errco.NewLogln(errco.TYPE_BYT, errco.LVL_4, errco.ERROR_NIL, "%smsh --> client%s: %v", errco.COLOR_PURPLE, errco.COLOR_RESET, pingData)
 
@@ -185,19 +209,17 @@ func getPing(clientSocket net.Conn) *errco.MshLog {
 }
 
 // getClientPacket reads the client socket and returns only the bytes containing data
-// clientSocket connection should not be closed here (need to be closed in caller function).
-func getClientPacket(clientSocket net.Conn) ([]byte, *errco.MshLog) {
+// clientConn connection should not be closed here (need to be closed in caller function).
+func getClientPacket(clientConn net.Conn) ([]byte, *errco.MshLog) {
 	buf := make([]byte, 1024)
 
+	// set deadline to avoid hanging when client is not sending a packet that msh expects
+	clientConn.SetDeadline(time.Now().Add(1 * time.Second))
+
 	// read first packet
-	dataLen, err := clientSocket.Read(buf)
+	dataLen, err := clientConn.Read(buf)
 	if err != nil {
-		if err == io.EOF {
-			// return empty byte structure and EOF error
-			return []byte{}, errco.NewLog(errco.TYPE_WAR, errco.LVL_3, errco.ERROR_CONN_EOF, "received EOF from %15s", strings.Split(clientSocket.RemoteAddr().String(), ":")[0])
-		} else {
-			return nil, errco.NewLog(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_CLIENT_SOCKET_READ, err.Error())
-		}
+		return nil, errco.NewLog(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_CLIENT_SOCKET_READ, err.Error())
 	}
 
 	errco.NewLogln(errco.TYPE_BYT, errco.LVL_4, errco.ERROR_NIL, "%sclient --> msh%s: %v", errco.COLOR_PURPLE, errco.COLOR_RESET, buf[:dataLen])

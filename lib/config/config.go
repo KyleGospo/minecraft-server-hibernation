@@ -14,6 +14,8 @@ import (
 	"msh/lib/opsys"
 	"msh/lib/servstats"
 	"msh/lib/utility"
+
+	"github.com/google/shlex"
 )
 
 var (
@@ -28,10 +30,12 @@ var (
 
 	ServerIcon string = defaultServerIcon // ServerIcon contains the minecraft server icon
 
-	ListenHost string = "0.0.0.0"   // ListenHost is the ip address for clients to connect to msh
-	ListenPort int                  // ListenPort is the port for clients to connect to msh
-	TargetHost string = "127.0.0.1" // TargetHost is the ip address for msh to connect to minecraft server
-	TargetPort int                  // TargetPort is the port for msh to connect to minecraft server
+	MshHost       string = "0.0.0.0"   // MshHost		is the ip address for clients to connect to msh
+	MshPort       int                  // MshPort		is the port for clients to connect to msh
+	MshPortQuery  int                  // MshPortQuery	is the port for clients to perform stats query requests at msh
+	ServHost      string = "127.0.0.1" // ServHost		is the ip address for msh to connect to minecraft server
+	ServPort      int                  // ServPort		is the port for msh to connect to minecraft server
+	ServPortQuery int                  // ServPortQuery	is the port for msh to perform stats query requests at minecraft server
 )
 
 type Configuration struct {
@@ -74,6 +78,9 @@ func LoadConfig() *errco.MshLog {
 		if logMsh != nil {
 			return logMsh.AddTrace()
 		}
+
+		// reset config default save flag
+		configDefaultSave = false
 	}
 
 	return nil
@@ -103,6 +110,29 @@ func (c *Configuration) Save() *errco.MshLog {
 	errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "saved default config to config file")
 
 	return nil
+}
+
+// BuildCommandStartServer builds the start server command by replacing placeholders.
+//
+// If generated command has less than 2 arguments, it is considered invalid and error returned.
+func (c *Configuration) BuildCommandStartServer() ([]string, *errco.MshLog) {
+	var command = []string{}
+	for _, ss := range strings.Fields(c.Commands.StartServer) {
+		switch ss {
+		case "<Server.FileName>":
+			command = append(command, c.Server.FileName)
+		case "<Commands.StartServerParam>":
+			command = append(command, strings.Fields(c.Commands.StartServerParam)...)
+		default:
+			command = append(command, ss)
+		}
+	}
+
+	if len(command) < 2 {
+		return command, errco.NewLog(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_INVALID_COMMAND, "generated command to start minecraft server is invalid")
+	}
+
+	return command, nil
 }
 
 // loadDefault loads config file to config variable
@@ -137,24 +167,14 @@ func (c *Configuration) loadDefault() *errco.MshLog {
 		configDefaultSave = true
 	}
 
-	// load ms version/protocol
-	// (checkout version.json info: https://minecraft.fandom.com/wiki/Version.json)
-	version, protocol, logMsh := c.getVersionInfo()
-	if logMsh != nil {
-		// just log it since ms version/protocol are not vital for the connection with clients
-		logMsh.Log(true)
-	} else if c.Server.Version != version || c.Server.Protocol != protocol {
-		c.Server.Version = version
-		c.Server.Protocol = protocol
-		configDefaultSave = true
-	}
-
 	return nil
 }
 
 // loadRuntime initializes runtime config to default config.
 // Then parses start arguments into runtime config, replaces placeholders and does the runtime config setup
 func (c *Configuration) loadRuntime(confdef *Configuration) *errco.MshLog {
+	var logMsh *errco.MshLog
+
 	// initialize config to base
 	*c = *confdef
 
@@ -171,16 +191,27 @@ func (c *Configuration) loadRuntime(confdef *Configuration) *errco.MshLog {
 
 	flag.IntVar(&c.Msh.Debug, "d", c.Msh.Debug, "Specify debug level.")
 	// c.Msh.ID should not be set by a flag
-	flag.IntVar(&c.Msh.ListenPort, "port", c.Msh.ListenPort, "Specify msh port.")
+	flag.IntVar(&c.Msh.MshPort, "port", c.Msh.MshPort, "Specify msh port.")
+	flag.IntVar(&c.Msh.MshPortQuery, "portquery", c.Msh.MshPortQuery, "Specify msh port for queries.")
+	flag.IntVar(&ServPort, "servport", ServPort, "Specify the minecraft server port.")
+	flag.IntVar(&ServPortQuery, "servportquery", ServPortQuery, "Specify minecraft server port for queries.")
+	flag.BoolVar(&c.Msh.EnableQuery, "enablequery", c.Msh.EnableQuery, "Enables queries handling.")
 	flag.Int64Var(&c.Msh.TimeBeforeStoppingEmptyServer, "timeout", c.Msh.TimeBeforeStoppingEmptyServer, "Specify time to wait before stopping minecraft server.")
-	flag.BoolVar(&c.Msh.SuspendAllow, "SuspendAllow", c.Msh.SuspendAllow, "Specify if minecraft server process can be suspended.")
-	flag.IntVar(&c.Msh.SuspendRefresh, "SuspendRefresh", c.Msh.SuspendRefresh, "Specify how often the suspended minecraft server process must be refreshed.")
+	flag.BoolVar(&c.Msh.SuspendAllow, "suspendallow", c.Msh.SuspendAllow, "Enables minecraft server process suspension.")
+	flag.IntVar(&c.Msh.SuspendRefresh, "suspendrefresh", c.Msh.SuspendRefresh, "Specify how often the suspended minecraft server process must be refreshed.")
 	flag.StringVar(&c.Msh.InfoHibernation, "infohibe", c.Msh.InfoHibernation, "Specify hibernation info.")
 	flag.StringVar(&c.Msh.InfoStarting, "infostar", c.Msh.InfoStarting, "Specify starting info.")
-	flag.BoolVar(&c.Msh.NotifyUpdate, "notifyupd", c.Msh.NotifyUpdate, "Specify if update notifications are allowed.")
-	flag.BoolVar(&c.Msh.NotifyMessage, "notifymes", c.Msh.NotifyMessage, "Specify if message notifications are allowed.")
+	flag.BoolVar(&c.Msh.NotifyUpdate, "notifyupd", c.Msh.NotifyUpdate, "Enables update notifications.")
+	flag.BoolVar(&c.Msh.NotifyMessage, "notifymes", c.Msh.NotifyMessage, "Enables message notifications.")
 	// c.Msh.Whitelist (type []string, not worth to make it a flag)
-	flag.BoolVar(&c.Msh.WhitelistImport, "wlimport", c.Msh.WhitelistImport, "Specify is minecraft server whitelist should be imported")
+	flag.BoolVar(&c.Msh.WhitelistImport, "wlimport", c.Msh.WhitelistImport, "Enables minecraft server whitelist import.")
+	flag.BoolVar(&c.Msh.ShowResourceUsage, "showres", c.Msh.ShowResourceUsage, "Enables logging of msh resource usage (cpu / mem percentage).")
+	flag.BoolVar(&c.Msh.ShowInternetUsage, "showint", c.Msh.ShowInternetUsage, "Enables logging of msh interent usage (->clients / ->server).")
+
+	// backward compatibility
+	flag.IntVar(&c.Commands.StopServerAllowKill, "allowKill", c.Commands.StopServerAllowKill, "Specify after how many seconds the server should be killed (if stop command fails).") // msh pterodactyl egg
+	flag.BoolVar(&c.Msh.SuspendAllow, "SuspendAllow", c.Msh.SuspendAllow, "Enables minecraft server process suspension.")                                                            // msh pterodactyl egg
+	flag.IntVar(&c.Msh.SuspendRefresh, "SuspendRefresh", c.Msh.SuspendRefresh, "Specify how often the suspended minecraft server process must be refreshed.")                        // msh pterodactyl egg
 
 	// specify the usage when there is an error in the arguments
 	flag.Usage = func() {
@@ -189,18 +220,20 @@ func (c *Configuration) loadRuntime(confdef *Configuration) *errco.MshLog {
 		flag.PrintDefaults()
 	}
 
-	// parse arguments
-	flag.Parse()
-
-	// replace placeholders
-	c.Commands.StartServer = strings.ReplaceAll(c.Commands.StartServer, "<Server.FileName>", c.Server.FileName)
-	c.Commands.StartServer = strings.ReplaceAll(c.Commands.StartServer, "<Commands.StartServerParam>", c.Commands.StartServerParam)
+	// join os provided args and split them again with shlex.
+	// (this prevents badly splitted arguments on pterodactyl panel)
+	// fixes #188
+	args, err := shlex.Split(strings.Join(os.Args[1:], " "))
+	if err != nil {
+		return errco.NewLog(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_PARSE, err.Error())
+	}
+	flag.CommandLine.Parse(args)
 
 	// after config variables are set, set debug level
 	errco.NewLogln(errco.TYPE_INF, errco.LVL_0, errco.ERROR_NIL, "setting log level to: %d", c.Msh.Debug)
 	errco.DebugLvl = errco.LogLvl(c.Msh.Debug)
 
-	// ------------------- setup ------------------- //
+	// ---------------- setup check ---------------- //
 
 	// check if server folder/executeble exist
 	serverFileFolderPath := filepath.Join(c.Server.Folder, c.Server.FileName)
@@ -209,7 +242,6 @@ func (c *Configuration) loadRuntime(confdef *Configuration) *errco.MshLog {
 
 		logMsh := errco.NewLogln(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_MINECRAFT_SERVER, "specified minecraft server folder/file does not exist: %s", serverFileFolderPath)
 		servstats.Stats.SetMajorError(logMsh)
-
 	} else {
 		// server folder/executeble exist
 
@@ -224,8 +256,11 @@ func (c *Configuration) loadRuntime(confdef *Configuration) *errco.MshLog {
 
 			// start server to generate eula.txt (and server.properties)
 			errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "starting minecraft server to generate eula.txt file...")
-			cSplit := strings.Split(c.Commands.StartServer, " ")
-			cmd := exec.Command(cSplit[0], cSplit[1:]...)
+			command, logMsh := c.BuildCommandStartServer()
+			if logMsh != nil {
+				return logMsh.AddTrace()
+			}
+			cmd := exec.Command(command[0], command[1:]...)
 			cmd.Dir = c.Server.Folder
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
@@ -252,7 +287,7 @@ func (c *Configuration) loadRuntime(confdef *Configuration) *errco.MshLog {
 	}
 
 	// check if java is installed and get java version
-	_, err := exec.LookPath("java")
+	_, err = exec.LookPath("java")
 	if err != nil {
 		logMsh := errco.NewLogln(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_MINECRAFT_SERVER, "java not installed")
 		servstats.Stats.SetMajorError(logMsh)
@@ -264,13 +299,63 @@ func (c *Configuration) loadRuntime(confdef *Configuration) *errco.MshLog {
 		JavaV = strings.ReplaceAll(strings.Split(string(out), "\n")[0], "\r", "")
 	}
 
-	// initialize ip and ports for connection
-	logMsh := c.loadIpPorts()
-	if logMsh != nil {
+	// ---------------- setup load ----------------- //
+
+	// load ports
+
+	// MshHost defined in global definition
+	MshPort = c.Msh.MshPort
+	MshPortQuery = c.Msh.MshPortQuery
+
+	// ServHost	defined in global definition
+	if ServPort != 0 {
+		// ServPort defined in msh start arguments
+	} else if ServPort, logMsh = c.ParsePropertiesInt("server-port"); logMsh != nil {
 		logMsh.Log(true)
+	} else if ServPort == c.Msh.MshPort {
+		logMsh := errco.NewLogln(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_CONFIG_LOAD, "ServPort and MshPort appear to be the same, please change one of them")
 		servstats.Stats.SetMajorError(logMsh)
+	}
+	if ServPortQuery != 0 {
+		// ServPortQuery defined in msh start arguments
+	} else if ServPortQuery, logMsh = c.ParsePropertiesInt("query.port"); logMsh != nil {
+		logMsh.Log(true)
+	} else if ServPortQuery == c.Msh.MshPortQuery {
+		logMsh := errco.NewLogln(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_CONFIG_LOAD, "ServPortQuery and MshPortQuery appear to be the same, please change one of them")
+		servstats.Stats.SetMajorError(logMsh)
+	}
+
+	errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "msh connection  proxy setup: %10s:%5d --> %10s:%5d", MshHost, MshPort, ServHost, ServPort)
+
+	// check if queries are enabled by config, start arguments or ms config
+	if !c.Msh.EnableQuery {
+		errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "msh stats query proxy setup: disabled by msh config or start arguments")
+		c.Msh.EnableQuery = false
+	} else if msConfigEnableQuery, logMsh := c.ParsePropertiesBool("enable-query"); logMsh != nil {
+		errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "msh stats query proxy setup: disabled by error-┐")
+		logMsh.Log(true)
+		c.Msh.EnableQuery = false
+	} else if !msConfigEnableQuery {
+		errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "msh stats query proxy setup: disabled by minecraft server config")
+		c.Msh.EnableQuery = false
 	} else {
-		errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "msh proxy setup: %s:%d --> %s:%d", ListenHost, ListenPort, TargetHost, TargetPort)
+		errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "msh stats query proxy setup: %10s:%5d --> %10s:%5d", MshHost, MshPortQuery, ServHost, ServPortQuery)
+		c.Msh.EnableQuery = true
+	}
+
+	// load ms version/protocol
+	c.Server.Version, c.Server.Protocol, logMsh = c.getVersionInfo()
+	if logMsh != nil {
+		// just log it since ms version/protocol are not vital for the connection with clients
+		logMsh.Log(true)
+	} else if c.Server.Version == "" || c.Server.Protocol == -1 {
+		// found ms version/protocol are invalid
+		errco.NewLogln(errco.TYPE_WAR, errco.LVL_3, errco.ERROR_VERSION_LOAD, "version (%s) and protocol (%d) are invalid", c.Server.Version, c.Server.Protocol)
+	} else if confdef.Server.Version != c.Server.Version || confdef.Server.Protocol != c.Server.Protocol {
+		// replace found ms version/protocol in default config,
+		confdef.Server.Version = c.Server.Version
+		confdef.Server.Protocol = c.Server.Protocol
+		configDefaultSave = true
 	}
 
 	// load server icon

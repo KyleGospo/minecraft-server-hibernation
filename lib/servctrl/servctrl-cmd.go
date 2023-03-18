@@ -24,7 +24,7 @@ var ServTerm *servTerminal = &servTerminal{IsActive: false}
 type servTerminal struct {
 	IsActive  bool
 	Wg        sync.WaitGroup // used to wait terminal StdoutPipe/StderrPipe
-	startTime time.Time      // uptime of minecraft server
+	startTime time.Time      // time at which minecraft server terminal was started
 	cmd       *exec.Cmd
 	outPipe   io.ReadCloser
 	errPipe   io.ReadCloser
@@ -35,12 +35,17 @@ type servTerminal struct {
 var lastOut = make(chan string)
 
 // Execute executes a command on ms.
-// Commands with no terminal output don't cause hanging:
-// a timeout is set to receive a new terminal output line after which Execute returns.
+//
+// Returns the output lines of ms terminal with a timeout of 200ms since last output line.
+//
+// (Execute on command with no output doesn't cause hanging)
+//
+// (Execute on command with multiple lines returns them separated by \n, if print time between them was less than timeout)
+//
 // [non-blocking]
 func Execute(command string) (string, *errco.MshLog) {
-	// check if ms is running
-	logMsh := checkMSRunning()
+	// check if ms is warm and interactable
+	logMsh := CheckMSWarm()
 	if logMsh != nil {
 		return "", logMsh.AddTrace()
 	}
@@ -73,8 +78,8 @@ a:
 // TellRaw executes a tellraw on ms
 // [non-blocking]
 func TellRaw(reason, text, origin string) *errco.MshLog {
-	// check if ms is running
-	logMsh := checkMSRunning()
+	// check if ms is warm and interactable
+	logMsh := CheckMSWarm()
 	if logMsh != nil {
 		return logMsh.AddTrace()
 	}
@@ -98,20 +103,32 @@ func TellRaw(reason, text, origin string) *errco.MshLog {
 	return nil
 }
 
-// TermUpTime returns the current minecraft server uptime.
-// In case of error 0 is returned.
+// TermUpTime returns the current minecraft server terminal uptime.
+// If ms terminal is not running returns -1.
 func TermUpTime() int {
 	if !ServTerm.IsActive {
-		return 0
+		return -1
 	}
 
 	return utility.RoundSec(time.Since(ServTerm.startTime))
 }
 
-// checkMSRunning checks if minecraft server is running and it's possible to interact with it.
+// WarmUpTime returns the current minecraft server warmed uptime.
+// If ms is not warm returns -1.
+func WarmUpTime() int {
+	if err := CheckMSWarm(); err != nil {
+		return -1
+	}
+
+	return utility.RoundSec(time.Since(servstats.Stats.WarmUpTime))
+}
+
+// CheckMSWarm checks if minecraft server is warm and it's possible to interact with it.
 //
-// checks if terminal is active, ms status is online and ms process not suspended.
-func checkMSRunning() *errco.MshLog {
+// Checks if there is no major error, terminal is active, ms status is online and ms process not suspended.
+//
+// If ms is warm and interactable, returns nil
+func CheckMSWarm() *errco.MshLog {
 	switch {
 	case servstats.Stats.MajorError != nil:
 		return errco.NewLog(errco.TYPE_ERR, errco.LVL_2, errco.ERROR_SERVER_UNRESPONDING, "minecraft server not responding")
@@ -129,13 +146,13 @@ func checkMSRunning() *errco.MshLog {
 // termStart starts a new terminal.
 // If server terminal is already active it returns without doing anything
 // [non-blocking]
-func termStart(dir, command string) *errco.MshLog {
+func termStart() *errco.MshLog {
 	if ServTerm.IsActive {
 		errco.NewLogln(errco.TYPE_WAR, errco.LVL_3, errco.ERROR_SERVER_IS_WARM, "minecraft server terminal already active")
 		return nil
 	}
 
-	logMsh := termLoad(dir, command)
+	logMsh := termLoad()
 	if logMsh != nil {
 		return logMsh.AddTrace()
 	}
@@ -153,12 +170,14 @@ func termStart(dir, command string) *errco.MshLog {
 }
 
 // termLoad loads cmd/pipes into ServTerm
-func termLoad(dir, command string) *errco.MshLog {
-	cSplit := strings.Split(command, " ")
-
+func termLoad() *errco.MshLog {
 	// set terminal cmd
-	ServTerm.cmd = exec.Command(cSplit[0], cSplit[1:]...)
-	ServTerm.cmd.Dir = dir
+	command, logMsh := config.ConfigRuntime.BuildCommandStartServer()
+	if logMsh != nil {
+		return logMsh.AddTrace()
+	}
+	ServTerm.cmd = exec.Command(command[0], command[1:]...)
+	ServTerm.cmd.Dir = config.ConfigRuntime.Server.Folder
 
 	// launch as new process group so that signals (ex: SIGINT) are sent to msh
 	// (not relayed to the java server child process)
@@ -250,7 +269,6 @@ func printerOutErr() {
 				// Continue if line does not contain ": "
 				// (it does not adhere to expected log format or it is a multiline java exception)
 				if !strings.Contains(line, ": ") {
-					errco.NewLogln(errco.TYPE_WAR, errco.LVL_2, errco.ERROR_SERVER_UNEXP_OUTPUT, "line does not adhere to expected log format")
 					continue
 				}
 
@@ -260,10 +278,6 @@ func printerOutErr() {
 
 				if strings.Contains(lineHeader, "INFO") {
 					switch {
-					// player sends a chat message
-					case strings.HasPrefix(lineContent, "<") || strings.HasPrefix(lineContent, "["):
-						errco.NewLogln(errco.TYPE_INF, errco.LVL_2, errco.ERROR_NIL, "a chat message was sent")
-
 					// player leaves the server
 					case strings.Contains(lineContent, "lost connection:"): // "lost connection" is more general compared to "left the game" (even too much: player might write it in chat -> added ":")
 						FreezeMSSchedule()
@@ -320,7 +334,7 @@ func printerOutErr() {
 func waitForExit() {
 	ServTerm.IsActive = true
 	ServTerm.startTime = time.Now()
-	errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "terminal started")
+	errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "ms terminal started")
 
 	servstats.Stats.Status = errco.SERVER_STATUS_STARTING
 	servstats.Stats.Suspended = false
@@ -350,7 +364,7 @@ func waitForExit() {
 	errco.NewLogln(errco.TYPE_INF, errco.LVL_1, errco.ERROR_NIL, "MINECRAFT SERVER IS OFFLINE!")
 
 	ServTerm.IsActive = false
-	errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "terminal exited")
+	errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "ms terminal exited")
 }
 
 // suspendRefresher refreshes ms suspension by warming and freezing the server every set amount of time.

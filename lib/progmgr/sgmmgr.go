@@ -2,6 +2,7 @@ package progmgr
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"sync"
@@ -11,6 +12,8 @@ import (
 	"msh/lib/errco"
 	"msh/lib/servctrl"
 	"msh/lib/servstats"
+
+	"github.com/shirou/gopsutil/mem"
 )
 
 var (
@@ -68,11 +71,12 @@ func sgmMgr() {
 		case <-sgm.tk.C:
 			sgm.m.Lock()
 
-			// increment segment second counter
+			// increment segment duration counter
 			sgm.stats.dur += 1
 
-			// increment work/hibernation second counter
-			if !servctrl.ServTerm.IsActive {
+			// increment hibernation duration counter if ms is not warm/interactable
+			logMsh := servctrl.CheckMSWarm()
+			if logMsh != nil {
 				sgm.stats.hibeDur += 1
 			}
 
@@ -83,6 +87,18 @@ func sgmMgr() {
 			mshTreeCpu, mshTreeMem := getMshTreeStats()
 			sgm.stats.usageCpu = (sgm.stats.usageCpu*float64(sgm.stats.dur-1) + float64(mshTreeCpu)) / float64(sgm.stats.dur) // sgm.stats.seconds-1 because the average is relative to 1 sec ago
 			sgm.stats.usageMem = (sgm.stats.usageMem*float64(sgm.stats.dur-1) + float64(mshTreeMem)) / float64(sgm.stats.dur)
+
+			if config.ConfigRuntime.Msh.ShowResourceUsage {
+				memInfo, _ := mem.VirtualMemory()
+				errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "cpu avg: %7.3f %% cpu now: %7.3f %%  -  mem avg: %7.3f %% mem now: %7.3f %% (of %4d MB) = %7.3f MB",
+					sgm.stats.usageCpu,
+					mshTreeCpu,
+					sgm.stats.usageMem,
+					mshTreeMem,
+					memInfo.Total/(1<<20),
+					0.01*mshTreeMem*float64(memInfo.Total)/(1<<20),
+				)
+			}
 
 			sgm.m.Unlock() // not using defer since it's an infinite loop
 
@@ -124,7 +140,12 @@ func sgmMgr() {
 				errco.NewLogln(errco.TYPE_WAR, errco.LVL_0, errco.ERROR_VERSION, "client is unauthorized, issuing msh termination")
 				AutoTerminate()
 			default:
-				errco.NewLogln(errco.TYPE_WAR, errco.LVL_3, errco.ERROR_VERSION, "response status code is %s -> prolonging segment...", res.Status)
+				body, err := io.ReadAll(res.Body)
+				if err != nil {
+					errco.NewLogln(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_BODY_READ, err.Error())
+				}
+
+				errco.NewLogln(errco.TYPE_WAR, errco.LVL_3, errco.ERROR_VERSION, "response status code is %s [ %s ] -> prolonging segment...", res.Status, body)
 				sgm.prolong(res)
 				break mainselect
 			}

@@ -12,17 +12,21 @@ import (
 	"msh/lib/servstats"
 )
 
-// HandleClientSocket handles a client that is connecting.
+func init() {
+	go printDataUsage()
+}
+
+// HandlerClientConn handles a client that is connecting.
 // Can handle a client that is requesting server INFO or server JOIN.
 // If there is a ms major error, it is reported to client then func returns.
 // [goroutine]
-func HandleClientSocket(clientSocket net.Conn) {
+func HandlerClientConn(clientConn net.Conn) {
 	// handling of ipv6 addresses
-	li := strings.LastIndex(clientSocket.RemoteAddr().String(), ":")
-	clientAddress := clientSocket.RemoteAddr().String()[:li]
+	li := strings.LastIndex(clientConn.RemoteAddr().String(), ":")
+	clientAddress := clientConn.RemoteAddr().String()[:li]
 
 	// get request type from client
-	reqPacket, reqType, logMsh := getReqType(clientSocket)
+	reqPacket, reqType, logMsh := getReqType(clientConn)
 	if logMsh != nil {
 		logMsh.Log(true)
 		return
@@ -30,22 +34,22 @@ func HandleClientSocket(clientSocket net.Conn) {
 
 	// if there is a major error warn the client and return
 	if servstats.Stats.MajorError != nil {
-		errco.NewLogln(errco.TYPE_WAR, errco.LVL_3, errco.ERROR_MINECRAFT_SERVER, "a client connected to msh (%s:%d to %s:%d) but minecraft server has encountered major problems", clientAddress, config.ListenPort, config.TargetHost, config.TargetPort)
+		errco.NewLogln(errco.TYPE_WAR, errco.LVL_3, errco.ERROR_MINECRAFT_SERVER, "a client connected to msh (%s:%d to %s:%d) but minecraft server has encountered major problems", clientAddress, config.MshPort, config.ServHost, config.ServPort)
 
 		// close the client connection before returning
 		defer func() {
 			errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "closing connection for: %s", clientAddress)
-			clientSocket.Close()
+			clientConn.Close()
 		}()
 
 		// msh INFO/JOIN response (warn client with error description)
 		mes := buildMessage(reqType, fmt.Sprintf(servstats.Stats.MajorError.Mex, servstats.Stats.MajorError.Arg...))
-		clientSocket.Write(mes)
+		clientConn.Write(mes)
 		errco.NewLogln(errco.TYPE_BYT, errco.LVL_4, errco.ERROR_NIL, "%smsh --> client%s: %v", errco.COLOR_PURPLE, errco.COLOR_RESET, mes)
 
 		// msh PING response if it was a client INFO request
 		if reqType == errco.CLIENT_REQ_INFO {
-			logMsh = getPing(clientSocket)
+			logMsh = getPing(clientConn)
 			if logMsh != nil {
 				logMsh.Log(true)
 			}
@@ -57,7 +61,7 @@ func HandleClientSocket(clientSocket net.Conn) {
 	// handle the request depending on request type
 	switch reqType {
 	case errco.CLIENT_REQ_INFO:
-		errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "a client requested server info from %s:%d to %s:%d", clientAddress, config.ListenPort, config.TargetHost, config.TargetPort)
+		errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "a client requested server info from %s:%d to %s:%d", clientAddress, config.MshPort, config.ServHost, config.ServPort)
 
 		if servstats.Stats.Status != errco.SERVER_STATUS_ONLINE || servstats.Stats.Suspended {
 			// ms not online or suspended
@@ -65,7 +69,7 @@ func HandleClientSocket(clientSocket net.Conn) {
 			defer func() {
 				// close the client connection before returning
 				errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "closing connection for: %s", clientAddress)
-				clientSocket.Close()
+				clientConn.Close()
 			}()
 
 			// msh INFO response
@@ -80,11 +84,11 @@ func HandleClientSocket(clientSocket net.Conn) {
 			case errco.SERVER_STATUS_STOPPING:
 				mes = buildMessage(reqType, "server is stopping...\nrefresh the page")
 			}
-			clientSocket.Write(mes)
+			clientConn.Write(mes)
 			errco.NewLogln(errco.TYPE_BYT, errco.LVL_4, errco.ERROR_NIL, "%smsh --> client%s: %v", errco.COLOR_PURPLE, errco.COLOR_RESET, mes)
 
 			// msh PING response
-			logMsh := getPing(clientSocket)
+			logMsh := getPing(clientConn)
 			if logMsh != nil {
 				logMsh.Log(true)
 				return
@@ -94,11 +98,11 @@ func HandleClientSocket(clientSocket net.Conn) {
 			// ms online and not suspended
 
 			// open proxy between client and server
-			openProxy(clientSocket, reqPacket, errco.CLIENT_REQ_INFO)
+			openProxy(clientConn, reqPacket, errco.CLIENT_REQ_INFO)
 		}
 
 	case errco.CLIENT_REQ_JOIN:
-		errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "a client tried to join from %s:%d to %s:%d", clientAddress, config.ListenPort, config.TargetHost, config.TargetPort)
+		errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "a client tried to join from %s:%d to %s:%d", clientAddress, config.MshPort, config.ServHost, config.ServPort)
 
 		if servstats.Stats.Status != errco.SERVER_STATUS_ONLINE {
 			// ms not online (un/suspended)
@@ -106,7 +110,7 @@ func HandleClientSocket(clientSocket net.Conn) {
 			defer func() {
 				// close the client connection before returning
 				errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "closing connection for: %s", clientAddress)
-				clientSocket.Close()
+				clientConn.Close()
 			}()
 
 			// check if the request packet contains element of whitelist or the address is in whitelist
@@ -116,7 +120,7 @@ func HandleClientSocket(clientSocket net.Conn) {
 
 				// msh JOIN response (warn client with text in the loadscreen)
 				mes := buildMessage(reqType, "You don't have permission to warm this server")
-				clientSocket.Write(mes)
+				clientConn.Write(mes)
 				errco.NewLogln(errco.TYPE_BYT, errco.LVL_4, errco.ERROR_NIL, "%smsh --> client%s: %v", errco.COLOR_PURPLE, errco.COLOR_RESET, mes)
 
 				return
@@ -128,7 +132,7 @@ func HandleClientSocket(clientSocket net.Conn) {
 				// msh JOIN response (warn client with text in the loadscreen)
 				logMsh.Log(true)
 				mes := buildMessage(reqType, "An error occurred while warming the server: check the msh log")
-				clientSocket.Write(mes)
+				clientConn.Write(mes)
 				errco.NewLogln(errco.TYPE_BYT, errco.LVL_4, errco.ERROR_NIL, "%smsh --> client%s: %v", errco.COLOR_PURPLE, errco.COLOR_RESET, mes)
 
 				return
@@ -136,7 +140,7 @@ func HandleClientSocket(clientSocket net.Conn) {
 
 			// msh JOIN response (answer client with text in the loadscreen)
 			mes := buildMessage(reqType, "Server start command issued. Please wait... "+servstats.Stats.LoadProgress)
-			clientSocket.Write(mes)
+			clientConn.Write(mes)
 			errco.NewLogln(errco.TYPE_BYT, errco.LVL_4, errco.ERROR_NIL, "%smsh --> client%s: %v", errco.COLOR_PURPLE, errco.COLOR_RESET, mes)
 
 		} else {
@@ -147,56 +151,61 @@ func HandleClientSocket(clientSocket net.Conn) {
 			if logMsh != nil {
 				// msh JOIN response (warn client with text in the loadscreen)
 				logMsh.Log(true)
-				mes := buildMessage(errco.MESSAGE_FORMAT_TXT, "An error occurred while warming the server: check the msh log")
-				clientSocket.Write(mes)
+				mes := buildMessage(reqType, "An error occurred while warming the server: check the msh log")
+				clientConn.Write(mes)
 				errco.NewLogln(errco.TYPE_BYT, errco.LVL_4, errco.ERROR_NIL, "%smsh --> client%s: %v", errco.COLOR_PURPLE, errco.COLOR_RESET, mes)
 
 				return
 			}
 
 			// open proxy between client and server
-			openProxy(clientSocket, reqPacket, errco.CLIENT_REQ_JOIN)
+			openProxy(clientConn, reqPacket, errco.CLIENT_REQ_JOIN)
 		}
+
+	default:
+		mes := buildMessage(reqType, "Client request unknown")
+		clientConn.Write(mes)
+		errco.NewLogln(errco.TYPE_BYT, errco.LVL_4, errco.ERROR_NIL, "%smsh --> client%s: %v", errco.COLOR_PURPLE, errco.COLOR_RESET, mes)
 	}
 }
 
 // openProxy opens a proxy connections between mincraft server and mincraft client.
 //
-// It forwards the server init packet for ms to interpret.
+// It sends the request packet for ms to interpret.
 //
 // The req parameter indicates what request type (INFO os JOIN) the proxy will be used for.
-func openProxy(clientSocket net.Conn, serverInitPacket []byte, req int) {
+func openProxy(clientConn net.Conn, serverInitPacket []byte, req int) {
 	// open a connection to ms and connect it with the client
-	serverSocket, err := net.Dial("tcp", fmt.Sprintf("%s:%d", config.TargetHost, config.TargetPort))
+	serverSocket, err := net.Dial("tcp", fmt.Sprintf("%s:%d", config.ServHost, config.ServPort))
 	if err != nil {
 		errco.NewLogln(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_SERVER_DIAL, err.Error())
 
 		// msh JOIN response (warn client with text in the loadscreen)
-		mes := buildMessage(errco.CLIENT_REQ_JOIN, "can't connect to server... check if minecraft server is running and set the correct targetPort")
-		clientSocket.Write(mes)
+		mes := buildMessage(errco.CLIENT_REQ_JOIN, "can't connect to server... check if minecraft server is running and set the correct ServPort")
+		clientConn.Write(mes)
 		errco.NewLogln(errco.TYPE_BYT, errco.LVL_4, errco.ERROR_NIL, "%smsh --> client%s: %v", errco.COLOR_PURPLE, errco.COLOR_RESET, mes)
 
 		return
 	}
 
-	// forward the request packet data
+	// sends the request packet
 	serverSocket.Write(serverInitPacket)
 
 	// launch proxy client -> server
-	go forward(clientSocket, serverSocket, false, req)
+	go forwardTCP(clientConn, serverSocket, false, req)
 
 	// launch proxy server -> client
-	go forward(serverSocket, clientSocket, true, req)
+	go forwardTCP(serverSocket, clientConn, true, req)
 }
 
-// forward takes a source and a destination net.Conn and forwards them.
+// forwardTCP takes a source and a destination net.Conn and forwards them.
 //
-// isServerToClient used to know the forward direction
+// isServerToClient used to know the forwardTCP direction
 //
 // req is used to decide if connection should be counted in servstats.Stats.ConnCount
 //
 // [goroutine]
-func forward(source, destination net.Conn, isServerToClient bool, req int) {
+func forwardTCP(source, destination net.Conn, isServerToClient bool, req int) {
 	var data []byte = make([]byte, 1024)
 	var direction string
 
@@ -207,7 +216,7 @@ func forward(source, destination net.Conn, isServerToClient bool, req int) {
 	}
 
 	// if client has requested ms join, change connection count
-	if isServerToClient && req == errco.CLIENT_REQ_JOIN { // isServerToClient used to count in only one of the 2 forward func
+	if isServerToClient && req == errco.CLIENT_REQ_JOIN { // isServerToClient used to count in only one of the 2 forwardTCP()
 		servstats.Stats.ConnCount++
 		errco.NewLogln(errco.TYPE_INF, errco.LVL_1, errco.ERROR_NIL, "A CLIENT CONNECTED TO THE SERVER! (join req) - %d active connections", servstats.Stats.ConnCount)
 
@@ -247,8 +256,8 @@ func forward(source, destination net.Conn, isServerToClient bool, req int) {
 		}
 
 		// calculate bytes/s to client/server
-		if errco.DebugLvl >= errco.LVL_3 {
-			errco.NewLogln(errco.TYPE_BYT, errco.LVL_4, errco.ERROR_NIL, "%s%s%s: %v", errco.COLOR_BLUE, direction, errco.COLOR_RESET, data[:dataLen])
+		if config.ConfigRuntime.Msh.ShowInternetUsage && errco.DebugLvl >= errco.LVL_3 {
+			errco.NewLogln(errco.TYPE_BYT, errco.LVL_4, errco.ERROR_NIL, "%s%s%s: %v", errco.COLOR_PURPLE, direction, errco.COLOR_RESET, data[:dataLen])
 
 			servstats.Stats.M.Lock()
 			if isServerToClient {
@@ -256,6 +265,32 @@ func forward(source, destination net.Conn, isServerToClient bool, req int) {
 			} else {
 				servstats.Stats.BytesToServer += float64(dataLen)
 			}
+			servstats.Stats.M.Unlock()
+		}
+	}
+}
+
+// printDataUsage prints connection data (KB/s) to clients and to minecraft server.
+//
+// Prints data exchanged only when clients are connected to ms.
+//
+// Logging is disabled when ShowInternetUsage is false.
+//
+// [goroutine]
+func printDataUsage() {
+	ticker := time.NewTicker(time.Second)
+	for {
+		<-ticker.C
+
+		if !config.ConfigRuntime.Msh.ShowInternetUsage {
+			continue
+		}
+
+		if servstats.Stats.BytesToClients != 0 || servstats.Stats.BytesToServer != 0 {
+			errco.NewLogln(errco.TYPE_INF, errco.LVL_3, errco.ERROR_NIL, "data/s: %8.3f KB/s to clients | %8.3f KB/s to server", servstats.Stats.BytesToClients/1024, servstats.Stats.BytesToServer/1024)
+			servstats.Stats.M.Lock()
+			servstats.Stats.BytesToClients = 0
+			servstats.Stats.BytesToServer = 0
 			servstats.Stats.M.Unlock()
 		}
 	}

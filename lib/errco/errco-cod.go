@@ -99,6 +99,7 @@ const (
 	ERROR_GET_CORES       LogCod = 0x01f100 // error getting system cores count
 	ERROR_GET_CPU_INFO    LogCod = 0x01f101 // error getting cpu info
 	ERROR_GET_MEMORY      LogCod = 0x01f102 // error getting system memory info
+	ERROR_BODY_READ       LogCod = 0x01f200 // error reading a body response
 
 	// server connection package
 
@@ -112,6 +113,9 @@ const (
 	ERROR_SERVER_REQUEST_INFO LogCod = 0x02f201 // error while msh server info request
 	ERROR_JSON_MARSHAL        LogCod = 0x02f300 // error while exporting struct to json bytes
 	ERROR_JSON_UNMARSHAL      LogCod = 0x02f301 // error while importing struct from json bytes
+	ERROR_QUERY_CHALLENGE     LogCod = 0x02f401 // error caused by query challenge
+	ERROR_QUERY_BAD_REQUEST   LogCod = 0x02f402 // error caused by query request
+	ERROR_PING_PACKET_UNKNOWN LogCod = 0x02f500 // error ping packet received is unknown
 
 	// config package
 
@@ -123,6 +127,8 @@ const (
 	ERROR_VERSION_LOAD     LogCod = 0x03f101 // error while loading version.json from server JAR
 	ERROR_WHITELIST_CHECK  LogCod = 0x03f200 // error while checking whitelist
 	ERROR_TYPE_UNSUPPORTED LogCod = 0x03f300 // error interface{}.(type) not supported
+	ERROR_INVALID_COMMAND  LogCod = 0x03f400 // error start ms command is invalid
+	ERROR_PARSE            LogCod = 0x03f500 // error while parsing args
 
 	// operative system package
 
@@ -136,6 +142,7 @@ const (
 	ERROR_PROCESS_NOT_FOUND       LogCod = 0x04f400 // error process pid was not found
 	ERROR_PROCESS_LIST            LogCod = 0x04f401 // error processes running not found
 	ERROR_PROCESS_KILL            LogCod = 0x04f402 // error process kill
+	ERROR_PROCESS_TIME            LogCod = 0x04f500 // error while retrieving process time
 
 	// utility package
 
@@ -150,8 +157,9 @@ const (
 
 	ERROR_COMMAND_INPUT   LogCod = 0x07f000 // general error while reading command input
 	ERROR_COMMAND_UNKNOWN LogCod = 0x07f001 // command is unknown
-	ERROR_INPUT_READ      LogCod = 0x07f100 // error while reading input)
-	ERROR_INPUT_EOF       LogCod = 0x07f101 // read EOF from stdin
+	ERROR_INPUT           LogCod = 0x07f100 // error input
+	ERROR_INPUT_READ      LogCod = 0x07f101 // error while reading input
+	ERROR_INPUT_EOF       LogCod = 0x07f102 // read EOF from stdin
 
 	// errco package
 	ERROR_COLOR_ENABLE LogCod = 0x08f000 // error while trying to enable colors on terminal

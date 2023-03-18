@@ -14,10 +14,12 @@ import (
 /*
 COMMIT COLLECTION
 - this is commit 700!
+- this is commit 800!
+- this is commit 900!
 */
 
 var (
-	MshVersion string = "v2.4.10" // msh version
+	MshVersion string = "v2.5.0"  // msh version
 	MshCommit  string = "-------" // msh commit
 
 	// msh program
@@ -85,6 +87,7 @@ func MshMgr() {
 
 // AutoTerminate induces correct msh termination via msh manager
 func AutoTerminate() {
+	errco.NewLogln(errco.TYPE_INF, errco.LVL_0, errco.ERROR_NIL, "issuing msh termination")
 	if msh.mgrActive {
 		// send signal to msh.sigExit so that msh manager handles msh termination
 		msh.sigExit <- syscall.SIGINT

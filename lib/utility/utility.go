@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 	"math"
+	"net"
 	"reflect"
 	"strconv"
 	"strings"
@@ -130,7 +131,7 @@ func ScaleImg(srcImg image.Image, rect image.Rectangle) (image.Image, time.Durat
 }
 
 // Entropy measures the Shannon entropy of a string.
-// Check http://bearcave.com/misl/misl_tech/wavelets/compression/shannon.html for the algorithmic explanation.
+// Check bearcave.com/misl/misl_tech/wavelets/compression/shannon.html for the algorithmic explanation.
 func Entropy(value string) int {
 	frq := make(map[rune]float64)
 
@@ -156,4 +157,27 @@ func Reverse[slice ~[]ele, ele any](sli slice) slice {
 		sli[i], sli[j] = sli[j], sli[i]
 	}
 	return sli
+}
+
+// FirstNon returns the first string different from the one specified.
+func FirstNon(s string, vals ...string) string {
+	for _, v := range vals {
+		if v != s {
+			return v
+		}
+	}
+
+	return s
+}
+
+// GetOutboundIP4 returns the preferred outbound ip of this machine as ip4 string
+func GetOutboundIP4() string {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		errco.NewLogln(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_SERVER_DIAL, err.Error())
+		return ""
+	}
+	defer conn.Close()
+
+	return conn.LocalAddr().(*net.UDPAddr).IP.To4().String()
 }

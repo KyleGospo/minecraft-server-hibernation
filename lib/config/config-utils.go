@@ -159,42 +159,16 @@ func (c *Configuration) loadIcon() *errco.MshLog {
 	return nil
 }
 
-// loadIpPorts reads server.properties server file and loads correct ports to global variables
-func (c *Configuration) loadIpPorts() *errco.MshLog {
-	// ListenHost remains the same
-	ListenPort = c.Msh.ListenPort
-	// TargetHost remains the same
-	// TargetPort is extracted from server.properties
-
-	data, err := os.ReadFile(filepath.Join(c.Server.Folder, "server.properties"))
-	if err != nil {
-		return errco.NewLog(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_CONFIG_LOAD, err.Error())
-	}
-
-	TargetPortStr, logMsh := utility.StrBetween(strings.ReplaceAll(string(data), "\r", ""), "server-port=", "\n")
-	if logMsh != nil {
-		return logMsh.AddTrace()
-	}
-
-	TargetPort, err = strconv.Atoi(TargetPortStr)
-	if err != nil {
-		return errco.NewLog(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_CONVERSION, err.Error())
-	}
-
-	if TargetPort == c.Msh.ListenPort {
-		return errco.NewLog(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_CONFIG_LOAD, "TargetPort and ListenPort appear to be the same, please change one of them")
-	}
-
-	return nil
-}
-
 // getVersionInfo reads version.json from the server JAR file
 // and returns minecraft server version and protocol.
-// In case of error "", 0, *errco.MshLog are returned.
+//
+// In case of error "", -1, *errco.MshLog are returned.
+//
+// (checkout version.json info: https://minecraft.fandom.com/wiki/Version.json)
 func (c *Configuration) getVersionInfo() (string, int, *errco.MshLog) {
 	reader, err := zip.OpenReader(filepath.Join(c.Server.Folder, c.Server.FileName))
 	if err != nil {
-		return "", 0, errco.NewLog(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_VERSION_LOAD, err.Error())
+		return "", -1, errco.NewLog(errco.TYPE_WAR, errco.LVL_3, errco.ERROR_VERSION_LOAD, err.Error())
 	}
 	defer reader.Close()
 
@@ -206,23 +180,102 @@ func (c *Configuration) getVersionInfo() (string, int, *errco.MshLog) {
 
 		f, err := file.Open()
 		if err != nil {
-			return "", 0, errco.NewLog(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_VERSION_LOAD, err.Error())
+			return "", -1, errco.NewLog(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_VERSION_LOAD, err.Error())
 		}
 		defer f.Close()
 
 		versionsBytes, err := io.ReadAll(f)
 		if err != nil {
-			return "", 0, errco.NewLog(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_VERSION_LOAD, err.Error())
+			return "", -1, errco.NewLog(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_VERSION_LOAD, err.Error())
 		}
 
 		var info model.VersionInfo
 		err = json.Unmarshal(versionsBytes, &info)
 		if err != nil {
-			return "", 0, errco.NewLog(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_VERSION_LOAD, err.Error())
+			return "", -1, errco.NewLog(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_VERSION_LOAD, err.Error())
 		}
 
-		return info.Version, info.Protocol, nil
+		return utility.FirstNon("", info.Version1, info.Version2), info.Protocol, nil
 	}
 
-	return "", 0, errco.NewLog(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_VERSION_LOAD, "minecraft server version and protocol could not be extracted from version.json")
+	return "", -1, errco.NewLog(errco.TYPE_ERR, errco.LVL_3, errco.ERROR_VERSION_LOAD, "minecraft server version and protocol could not be extracted from version.json")
+}
+
+// ParsePropertiesString reads server.properties file and returns the requested variable
+func (c *Configuration) ParsePropertiesString(key string) (string, *errco.MshLog) {
+	data, err := os.ReadFile(filepath.Join(c.Server.Folder, "server.properties"))
+	if err != nil {
+		return "", errco.NewLog(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_CONFIG_LOAD, err.Error())
+	}
+
+	for _, line := range strings.Split(string(data), "\n") {
+		parts := strings.Split(strings.Join(strings.Fields(line), ""), "=")
+		if len(parts) != 2 {
+			continue
+		}
+
+		if parts[0] != key {
+			continue
+		}
+
+		return parts[1], nil
+	}
+
+	return "", errco.NewLog(errco.TYPE_WAR, errco.LVL_1, errco.ERROR_CONFIG_LOAD, "key (%s) not found while parsing server.properties", key)
+}
+
+// ParsePropertiesInt reads server.properties file and returns the requested variable
+func (c *Configuration) ParsePropertiesInt(key string) (int, *errco.MshLog) {
+	data, err := os.ReadFile(filepath.Join(c.Server.Folder, "server.properties"))
+	if err != nil {
+		return -1, errco.NewLog(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_CONFIG_LOAD, err.Error())
+	}
+
+	for _, line := range strings.Split(string(data), "\n") {
+		parts := strings.Split(strings.Join(strings.Fields(line), ""), "=")
+		if len(parts) != 2 {
+			continue
+		}
+
+		if parts[0] != key {
+			continue
+		}
+
+		val, err := strconv.Atoi(parts[1])
+		if err != nil {
+			return -1, errco.NewLog(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_CONFIG_LOAD, err.Error())
+		}
+
+		return val, nil
+	}
+
+	return -1, errco.NewLog(errco.TYPE_WAR, errco.LVL_1, errco.ERROR_CONFIG_LOAD, "key (%s) not found while parsing server.properties", key)
+}
+
+// ParsePropertiesBool reads server.properties file and returns the requested variable
+func (c *Configuration) ParsePropertiesBool(key string) (bool, *errco.MshLog) {
+	data, err := os.ReadFile(filepath.Join(c.Server.Folder, "server.properties"))
+	if err != nil {
+		return false, errco.NewLog(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_CONFIG_LOAD, err.Error())
+	}
+
+	for _, line := range strings.Split(string(data), "\n") {
+		parts := strings.Split(strings.Join(strings.Fields(line), ""), "=")
+		if len(parts) != 2 {
+			continue
+		}
+
+		if parts[0] != key {
+			continue
+		}
+
+		val, err := strconv.ParseBool(parts[1])
+		if err != nil {
+			return false, errco.NewLog(errco.TYPE_ERR, errco.LVL_1, errco.ERROR_CONFIG_LOAD, err.Error())
+		}
+
+		return val, nil
+	}
+
+	return false, errco.NewLog(errco.TYPE_WAR, errco.LVL_1, errco.ERROR_CONFIG_LOAD, "key (%s) not found while parsing server.properties", key)
 }
