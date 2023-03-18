@@ -15,7 +15,7 @@ _(for vanilla/modded on linux/windows/macos)_
     </a>
 </p>
 
-version: v2.4.12  
+version: v2.5.0  
 Copyright (C) 2019-2023 [gekigek99](https://github.com/gekigek99)  
 
 Join our [discord server](https://discord.com/invite/guKB6ETeMF)!  
@@ -100,7 +100,7 @@ Set the logging level for debug purposes
 
 Ports configuration
 - _MshPort and MshPortQuery must be different from the respective ones in `server.properties`_
-- _query handling is enabled if `EnableQuery: true` in `msh-config.json` or `enable-query=true` in `server.properties`_
+- _query handling is enabled if `EnableQuery: true` in `msh-config.json` AND `enable-query=true` in `server.properties`_
 ```yaml
 "MshPort": 25555		# port to which players can join
 "MshPortQuery": 25555	# port to which stats query requests are performed from clients
