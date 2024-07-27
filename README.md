@@ -171,12 +171,27 @@ _for debug purposes (debug level 3 required)_
 ### CREDITS:  
 
 Author: [gekigek99](https://github.com/gekigek99)  
-
-Contributors: [najtin](https://github.com/najtin), [f8ith](https://github.com/f8ith), [Br31zh](https://github.com/Br31zh), [someotherotherguy](https://github.com/someotherotherguy), [navidmafi](https://github.com/navidmafi), [cromefire](https://github.com/cromefire), [andreblanke](https://github.com/andreblanke), [KyleGospo](https://github.com/KyleGospo), [A-wels](https://github.com/A-wels)  
-
-Docker branch (outdated): [lubocode](https://github.com/lubocode/minecraft-server-hibernation)  
-
 Pterodactyl egg: [BolverBlitz](https://github.com/gekware/minecraft-server-hibernation-pterodactyl-egg)  
+<details>
+	<summary>Contributors</summary>
+	<ul>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=najtin">najtin</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=lubocode">lubocode</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=BolverBlitz">BolverBlitz</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=f8ith">f8ith</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=Br31zh">Br31zh</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=someotherotherguy">someotherotherguy</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=navidmafi">navidmafi</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=cromefire">cromefire</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=andreblanke">andreblanke</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=KyleGospo">KyleGospo</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=A-wels">A-wels</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=dxomg">dxomg</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=JackGlobetrotter">JackGlobetrotter</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=Chris6ix">Chris6ix</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=TheDevMinerTV">TheDevMinerTV</a></li>
+	</ul>
+</details>
 
 _If you wish to contribute, please create a pull request using the dev branch as the base for your changes_
 
