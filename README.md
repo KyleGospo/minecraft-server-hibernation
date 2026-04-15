@@ -118,14 +118,17 @@ _To mitigate ram usage you can set a high swappiness (on linux)_
 - cons: ram usage as minecraft server without msh (cpu remains ~0)  
 
 SuspendRefresh enables refresh of minecraft server suspension every set seconds (to avoid watchdog crash at unsuspension)  
-- setting `these variables` and `SuspendRefresh` might prevent minecraft server watchdog crash when `SuspendAllow` is enabled  
+- setting the following variables and `SuspendRefresh` might prevent minecraft server watchdog crash when `SuspendAllow` is enabled  
+- ⚠️: might prevent crash (enabling `SuspendRefresh` is advised anyway)  
+- ✅: prevents crash even without enabling `SuspendRefresh` (for the specified minecraft versions)  
 
-|       file        |                       variable                       |
-| ----------------- | ---------------------------------------------------- |
-| server.properties | `max-tick-time= -1`                                  |
-| spigot.yml        | `timeout-time: -1`, `restart-on-crash: false`        |
-| bukkit.yml        | `warn-on-overload: false`                            |
-| paper-global.yml  | `early-warning-delay: -1`, `early-warning-every: -1` |
+|       file        |                       variable                       |       working       |
+| ----------------- | ---------------------------------------------------- | ------------------- |
+| msh-config.json   | `"StartServerParam": "-Ddisable.watchdog=true"`      | ✅ (paper, purpur) |
+| server.properties | `max-tick-time= -1`                                  | ⚠️                 |
+| spigot.yml        | `timeout-time: -1`, `restart-on-crash: false`        | ⚠️                 |
+| bukkit.yml        | `warn-on-overload: false`                            | ⚠️                 |
+| paper-global.yml  | `early-warning-delay: -1`, `early-warning-every: -1` | ⚠️                 |
 
 ```yaml
 "SuspendAllow": false
@@ -168,12 +171,27 @@ _for debug purposes (debug level 3 required)_
 ### CREDITS:  
 
 Author: [gekigek99](https://github.com/gekigek99)  
-
-Contributors: [najtin](https://github.com/najtin), [f8ith](https://github.com/f8ith), [Br31zh](https://github.com/Br31zh), [someotherotherguy](https://github.com/someotherotherguy), [navidmafi](https://github.com/navidmafi), [cromefire](https://github.com/cromefire), [andreblanke](https://github.com/andreblanke), [KyleGospo](https://github.com/KyleGospo), [A-wels](https://github.com/A-wels), [dxomg](https://github.com/dxomg)  
-
-Docker branch (outdated): [lubocode](https://github.com/lubocode/minecraft-server-hibernation)  
-
 Pterodactyl egg: [BolverBlitz](https://github.com/gekware/minecraft-server-hibernation-pterodactyl-egg)  
+<details>
+	<summary>Contributors</summary>
+	<ul>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=najtin">najtin</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=lubocode">lubocode</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=BolverBlitz">BolverBlitz</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=f8ith">f8ith</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=Br31zh">Br31zh</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=someotherotherguy">someotherotherguy</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=navidmafi">navidmafi</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=cromefire">cromefire</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=andreblanke">andreblanke</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=KyleGospo">KyleGospo</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=A-wels">A-wels</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=dxomg">dxomg</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=JackGlobetrotter">JackGlobetrotter</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=Chris6ix">Chris6ix</a></li>
+		<li><a href="https://github.com/gekware/minecraft-server-hibernation/commits?author=TheDevMinerTV">TheDevMinerTV</a></li>
+	</ul>
+</details>
 
 _If you wish to contribute, please create a pull request using the dev branch as the base for your changes_
 
