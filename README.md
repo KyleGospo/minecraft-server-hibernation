@@ -7,7 +7,7 @@
 [![msh - stars](https://img.shields.io/github/stars/gekware/minecraft-server-hibernation?color=ffbd19)](https://github.com/gekware/minecraft-server-hibernation/stargazers)
 
 Avoid wasting resources by starting your Minecraft server automatically when a player joins and stopping it when no one is online  
-MSH has collectively hibernated Minecraft servers for over a millennium (1000 Years), saving millions of CPU-hours since 2019. ❤️
+MSH has collectively hibernated Minecraft servers for over a millennium (1000 Years), saving millions of CPU-hours since 2019. ❤️  
 _(for vanilla/modded on linux/windows/macos)_  
 
 <p align="center" >
