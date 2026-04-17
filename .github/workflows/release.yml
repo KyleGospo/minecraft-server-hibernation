@@ -80,6 +80,6 @@ jobs:
           prerelease: false
           files: |
             dist/*
-            msh-config.json
+            ${{ strategy.job-index == 0 && 'msh-config.json' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
